@@ -217,7 +217,6 @@ void ULayerWidget::OnFadeInFinished()
 
 void ULayerWidget::CancelTransition()
 {
-	// Stop any async loading
 	if (StreamingHandle.IsValid())
 	{
 		StreamingHandle->CancelHandle();
@@ -225,7 +224,6 @@ void ULayerWidget::CancelTransition()
 	}
 	StreamingObjectPath.Reset();
 
-	// Stop any active fade animations
 	if (TickerHandle.IsValid())
 	{
 		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
