@@ -1,0 +1,12 @@
+# Unreal Engine generated files
+Binaries/
+Build/
+DerivedDataCache/
+Intermediate/
+Saved/
+Script/
+.vs/
+*.VC.db
+*.suo
+*.xcodeproj
+*.xcworkspace
