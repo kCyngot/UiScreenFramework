@@ -7,6 +7,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "UiScreenFrameworkBlueprintLibrary.generated.h"
 
+class UUiScreenTooltipManager;
 class UUiScreenManager;
 DECLARE_DYNAMIC_DELEGATE_OneParam(FInitializeViewModelSignature, UScreenViewModel*, ViewModel);
 
@@ -30,4 +31,7 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Ui Screen Framework", meta = (WorldContext = "WorldContextObject"))
 	static UUiScreenManager* GetUiScreenManager(const UObject* WorldContextObject);
+
+	UFUNCTION(BlueprintPure, Category = "Ui Screen Framework", meta = (WorldContext = "WorldContextObject"))
+	static UUiScreenTooltipManager* GetTooltipSubsystem(const UObject* WorldContextObject);
 };

@@ -27,14 +27,14 @@ UUiScreenManager* UUiScreenManager::Get(const UObject* WorldContextObject)
 {
 	if (!IsValid(WorldContextObject))
 	{
-		UE_LOG(LogUiScreenFramework, Error, TEXT("%s : WorldContextObject is invalid cannot get UiScreenManager"), *FString(__FUNCTION__));
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs : WorldContextObject is invalid cannot get UiScreenManager"), __FUNCTION__);
 		return nullptr;
 	}
 
 	const APlayerController* PlayerController = UGameplayStatics::GetPlayerController(WorldContextObject, 0);
 	if (!IsValid(PlayerController))
 	{
-		UE_LOG(LogUiScreenFramework, Error, TEXT("%s : PlayerController is invalid cannot get UiScreenManager"), *FString(__FUNCTION__));
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs : PlayerController is invalid cannot get UiScreenManager"),__FUNCTION__);
 		return nullptr;
 	}
 
@@ -93,7 +93,7 @@ void UUiScreenManager::CreateMainLayoutWidget(APlayerController* PlayerControlle
 
 	ensure(LocalPlayer->GetPlayerController(GetWorld()) == PlayerController);
 
-	UE_LOG(LogUiScreenFramework, Log, TEXT("%s : RefreshLayout"), *FString(__FUNCTION__));
+	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs : RefreshLayout"), __FUNCTION__);
 
 	if (ensure(PlayerController))
 	{

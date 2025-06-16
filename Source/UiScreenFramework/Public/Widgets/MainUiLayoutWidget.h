@@ -7,10 +7,11 @@
 #include "GameplayTagContainer.h"
 #include "Structs/LayerInfo.h"
 #include "Structs/UiScreenInfo.h"
-#include "Widgets/LayerWidget.h"
+// #include "Widgets/LayerWidget.h"
 #include "MainUiLayoutWidget.generated.h"
 
 
+class UOverlay;
 /**
  * @class UMainUiLayoutWidget
  * @brief Manages the main layout of the UI, organizing different screens into distinct, ordered layers.
@@ -26,6 +27,7 @@ public:
 	 * @param UiScreenInfo The information about the screen to display, including the target layer and widget class.
 	 */
 	void SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo);
+	UOverlay* GetTooltipLayer() const { return TooltipLayer; }
 
 protected:
 	virtual void NativeDestruct() override;
@@ -37,7 +39,14 @@ protected:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UI Layout")
 	void RegisterLayer(UPARAM(meta = (Categories = "UI.Layer"))
-		FGameplayTag LayerTag, ULayerWidget* LayerWidget);
+		FGameplayTag LayerTag, UCommonLazyWidget* LayerWidget);
+	UFUNCTION(BlueprintCallable, Category = "UI Layout")
+
+	/**
+	 * @brief Adds and registers a tooltip layer.
+	 * @param LayerWidget The container for all tootips, which should be the overlay type
+	 */
+	void RegisterTooltipLayer(UOverlay* LayerWidget);
 
 	/** Callback for when a lazy widget's loading state changes. */
 	void OnLoadingStateChanged(bool bIsLoading);
@@ -53,4 +62,10 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TArray<FLayerInfo> Layers;
+
+	/**
+	 * @brief Cached tooltip layer.
+	 */
+	UPROPERTY(Transient)
+	TObjectPtr<UOverlay> TooltipLayer;
 };

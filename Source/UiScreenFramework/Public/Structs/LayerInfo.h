@@ -3,7 +3,7 @@
 
 #include "LayerInfo.generated.h"
 
-class ULayerWidget;
+class UCommonLazyWidget;
 
 USTRUCT(BlueprintType)
 struct FLayerInfo
@@ -16,5 +16,5 @@ struct FLayerInfo
 
 	// The lazy widget associated with this layer.
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
-	TObjectPtr<ULayerWidget> LayerWidget = nullptr;
+	TObjectPtr<UCommonLazyWidget> LayerWidget;
 };

@@ -21,7 +21,6 @@ TSharedRef<SWidget> ULayerWidget::RebuildWidget()
 {
 	MyOverlay = SNew(SOverlay);
 
-	// If there's already content when the widget is rebuilt, add it to the overlay
 	if (CurrentContent && CurrentContent->GetCachedWidget().IsValid())
 	{
 		CurrentContentWidget = CurrentContent->GetCachedWidget();
@@ -37,7 +36,9 @@ TSharedRef<SWidget> ULayerWidget::RebuildWidget()
 void ULayerWidget::ReleaseSlateResources(bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
+
 	CancelTransition();
+
 	MyOverlay.Reset();
 	CurrentContentWidget.Reset();
 	OldContentWidget.Reset();
@@ -50,22 +51,24 @@ bool ULayerWidget::IsInTransition() const
 
 void ULayerWidget::SetLazyContent(const TSoftClassPtr<UUserWidget> SoftWidget)
 {
+	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs SetLazyContent CurrentContent %s, SoftWidget.Get() %s"), __FUNCTION__,
+			*GetNameSafe(CurrentContent), SoftWidget.IsNull() ? TEXT("Null") : *SoftWidget.Get()->GetName());
+
 	CancelTransition();
 
-	// If the widget path is null, we just fade out the current screen.
 	if (SoftWidget.IsNull())
 	{
 		BeginTransition(nullptr);
 		return;
 	}
 
-	// Don't do anything if we're already transitioning to this widget
-	if (StreamingObjectPath == SoftWidget.ToSoftObjectPath() || IsInTransition())
-	{
-		UE_LOG(LogUiScreenFramework, Log, TEXT("%hs StreamingObjectPath %s, SoftWidget.ToSoftObjectPath() %s, IsInTransition() %s"), __FUNCTION__,
-			*StreamingObjectPath.ToString(), *SoftWidget.ToSoftObjectPath().ToString(), IsInTransition() ? TEXT("true") : TEXT("false"));
-		return;
-	}
+	// // Don't do anything if we're already transitioning to this widget
+	// if (StreamingObjectPath == SoftWidget.ToSoftObjectPath())
+	// {
+	// 	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs StreamingObjectPath %s, SoftWidget.ToSoftObjectPath() %s, IsInTransition() %s"), __FUNCTION__,
+	// 		*StreamingObjectPath.ToString(), *SoftWidget.ToSoftObjectPath().ToString(), IsInTransition() ? TEXT("true") : TEXT("false"));
+	// 	return;
+	// }
 
 	// If the requested widget is the one we already have, do nothing.
 	if (CurrentContent && CurrentContent->GetClass() == SoftWidget.Get())
@@ -222,6 +225,7 @@ void ULayerWidget::CancelTransition()
 		StreamingHandle->CancelHandle();
 		StreamingHandle.Reset();
 	}
+
 	StreamingObjectPath.Reset();
 
 	if (TickerHandle.IsValid())
@@ -229,6 +233,8 @@ void ULayerWidget::CancelTransition()
 		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
 		TickerHandle.Reset();
 	}
+
+	// CleanUpOldContent();
 }
 
 void ULayerWidget::RequestAsyncLoad(TSoftClassPtr<UObject> SoftObject, TFunction<void()>&& Callback)

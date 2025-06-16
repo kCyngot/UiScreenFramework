@@ -58,6 +58,7 @@ public:
 	void GoToThePreviousUiScreen();
 
 	const FUiScreenState& GetCurrentUiScreenData() const { return CurrentScreenState; }
+	const FMainLayoutWidgetInfo& GetMainLayoutWidgetInfo() const { return MainLayoutWidgetInfo; }
 
 	FOnUiScreenChanged OnUiScreenChanged;
 

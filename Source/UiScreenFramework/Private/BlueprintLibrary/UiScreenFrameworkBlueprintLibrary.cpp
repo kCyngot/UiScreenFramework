@@ -3,8 +3,11 @@
 
 #include "BlueprintLibrary/UiScreenFrameworkBlueprintLibrary.h"
 
+#include "Helpers/GeneralHelper.h"
+#include "Helpers/UiScreenManagerHelper.h"
 #include "Logging/LogUiScreenManager.h"
 #include "Subsystems/UiScreenManager.h"
+#include "Subsystems/UiScreenTooltipManager.h"
 
 void UUiScreenFrameworkBlueprintLibrary::ChangeUiScreen(const FGameplayTag ScreenTag, const FInitializeViewModelSignature& InitializeViewModelCallback, const UObject* WorldContextObject)
 {
@@ -36,5 +39,10 @@ FGameplayTag UUiScreenFrameworkBlueprintLibrary::GetCurrentUiScreenId(const UObj
 
 UUiScreenManager* UUiScreenFrameworkBlueprintLibrary::GetUiScreenManager(const UObject* WorldContextObject)
 {
-	return &UUiScreenManager::GetChecked(WorldContextObject);
+	return GeneralHelper::GetLocalPlayerSubsystem<UUiScreenManager>(WorldContextObject);
+}
+
+UUiScreenTooltipManager* UUiScreenFrameworkBlueprintLibrary::GetTooltipSubsystem(const UObject* WorldContextObject)
+{
+	return GeneralHelper::GetLocalPlayerSubsystem<UUiScreenTooltipManager>(WorldContextObject);
 }

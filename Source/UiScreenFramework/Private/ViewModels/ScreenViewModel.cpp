@@ -14,6 +14,5 @@ void UScreenViewModel::Deinit()
 	ensureAlways(bHasBeenInit);
 	bHasBeenInit = false;
 
-	SetBindings(false);
-	CleanAllPointers();
+	Super::Deinit();
 }

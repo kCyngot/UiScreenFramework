@@ -3,6 +3,7 @@
 
 #include "Widgets/MainUiLayoutWidget.h"
 
+#include "CommonLazyWidget.h"
 #include "Logging/LogUiScreenManager.h"
 UE_DISABLE_OPTIMIZATION
 
@@ -24,7 +25,7 @@ void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo)
 
 	for (int32 Index = TargetLayerIndex + 1; Index < Layers.Num(); ++Index)
 	{
-		if (ULayerWidget* HigherLayerWidget = Layers[Index].LayerWidget)
+		if (UCommonLazyWidget* HigherLayerWidget = Layers[Index].LayerWidget)
 		{
 			if (IsValid(HigherLayerWidget))
 			{
@@ -35,7 +36,7 @@ void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo)
 		}
 	}
 
-	if (ULayerWidget* TargetLayerWidget = Layers[TargetLayerIndex].LayerWidget)
+	if (UCommonLazyWidget* TargetLayerWidget = Layers[TargetLayerIndex].LayerWidget)
 	{
 		if (IsValid(TargetLayerWidget))
 		{
@@ -52,7 +53,7 @@ void UMainUiLayoutWidget::NativeDestruct()
 {
 	for (const FLayerInfo& Layer : Layers)
 	{
-		TObjectPtr<ULayerWidget> LayerWidget = Layer.LayerWidget;
+		TObjectPtr<UCommonLazyWidget> LayerWidget = Layer.LayerWidget;
 		if (IsValid(LayerWidget))
 		{
 			// LayerWidget->OnLoadingStateChanged().RemoveAll(this);
@@ -74,7 +75,7 @@ void UMainUiLayoutWidget::OnContentChanged(UUserWidget* UserWidget, FGameplayTag
 	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs UserWidget %s, Layer %s"), __FUNCTION__, *GetNameSafe(UserWidget), *Layer.ToString());
 }
 
-void UMainUiLayoutWidget::RegisterLayer(FGameplayTag LayerTag, ULayerWidget* LayerWidget)
+void UMainUiLayoutWidget::RegisterLayer(FGameplayTag LayerTag, UCommonLazyWidget* LayerWidget)
 {
 	if (IsDesignTime())
 	{
@@ -97,6 +98,18 @@ void UMainUiLayoutWidget::RegisterLayer(FGameplayTag LayerTag, ULayerWidget* Lay
 	// LayerWidget->OnContentChanged().AddUObject(this, &UMainUiLayoutWidget::OnContentChanged, LayerTag);
 
 	Layers.Emplace(FLayerInfo{LayerTag, LayerWidget});
+}
+
+void UMainUiLayoutWidget::RegisterTooltipLayer(UOverlay* LayerWidget)
+{
+	
+	if (!LayerWidget)
+	{
+		UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs: Attempted to register an invalid LayerWidget for the tooltip layer."), __FUNCTION__);
+		return;
+	}
+
+	TooltipLayer = LayerWidget;
 }
 
 UE_ENABLE_OPTIMIZATION

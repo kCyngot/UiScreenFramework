@@ -5,7 +5,6 @@
 
 #include "Helpers/UiScreenManagerHelper.h"
 #include "Logging/LogUiScreenManager.h"
-#include "Subsystems/UiScreenManager.h"
 #include "ViewModels/ScreenViewModel.h"
 
 UObject* UScreenViewModelResolver::CreateInstance(const UClass* ExpectedType, const UUserWidget* UserWidget, const UMVVMView* View) const
