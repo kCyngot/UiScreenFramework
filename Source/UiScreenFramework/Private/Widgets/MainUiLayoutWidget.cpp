@@ -5,6 +5,7 @@
 
 #include "CommonLazyWidget.h"
 #include "Logging/LogUiScreenManager.h"
+
 UE_DISABLE_OPTIMIZATION
 
 void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo)

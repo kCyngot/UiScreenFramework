@@ -1,5 +1,5 @@
 #pragma once
-
+#include "Engine/LocalPlayer.h"
 #include "MainLayoutWidgetInfo.generated.h"
 
 class UMainUiLayoutWidget;

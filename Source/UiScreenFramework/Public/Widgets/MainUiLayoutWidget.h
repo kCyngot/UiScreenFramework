@@ -7,10 +7,9 @@
 #include "GameplayTagContainer.h"
 #include "Structs/LayerInfo.h"
 #include "Structs/UiScreenInfo.h"
-// #include "Widgets/LayerWidget.h"
 #include "MainUiLayoutWidget.generated.h"
 
-
+class UCommonLazyWidget;
 class UOverlay;
 /**
  * @class UMainUiLayoutWidget
@@ -40,12 +39,12 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "UI Layout")
 	void RegisterLayer(UPARAM(meta = (Categories = "UI.Layer"))
 		FGameplayTag LayerTag, UCommonLazyWidget* LayerWidget);
-	UFUNCTION(BlueprintCallable, Category = "UI Layout")
 
 	/**
 	 * @brief Adds and registers a tooltip layer.
 	 * @param LayerWidget The container for all tootips, which should be the overlay type
 	 */
+	UFUNCTION(BlueprintCallable, Category = "UI Layout")
 	void RegisterTooltipLayer(UOverlay* LayerWidget);
 
 	/** Callback for when a lazy widget's loading state changes. */

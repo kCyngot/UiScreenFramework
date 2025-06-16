@@ -1,11 +1,9 @@
 #pragma once
+#include "CommonUserWidget.h"
 #include "GameplayTagContainer.h"
+#include "ViewModels/ScreenViewModel.h"
 
 #include "UiScreenInfo.generated.h"
-
-class UCommonUserWidget;
-class UCommonActivatableWidget;
-class UScreenViewModel;
 
 USTRUCT(BlueprintType)
 struct FUiScreenInfo

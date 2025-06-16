@@ -1,9 +1,9 @@
 ﻿#pragma once
+#include "CommonLazyWidget.h"
 #include "GameplayTagContainer.h"
 
 #include "LayerInfo.generated.h"
 
-class UCommonLazyWidget;
 
 USTRUCT(BlueprintType)
 struct FLayerInfo
