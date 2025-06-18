@@ -9,8 +9,9 @@
 #include "Structs/UiScreenInfo.h"
 #include "MainUiLayoutWidget.generated.h"
 
-class UCommonLazyWidget;
 class UOverlay;
+// class UCommonLazyWidget;
+// class UOverlay;
 /**
  * @class UMainUiLayoutWidget
  * @brief Manages the main layout of the UI, organizing different screens into distinct, ordered layers.
@@ -38,7 +39,7 @@ protected:
 	 */
 	UFUNCTION(BlueprintCallable, Category = "UI Layout")
 	void RegisterLayer(UPARAM(meta = (Categories = "UI.Layer"))
-		FGameplayTag LayerTag, UCommonLazyWidget* LayerWidget);
+		FGameplayTag LayerTag, ULayerWidget* LayerWidget);
 
 	/**
 	 * @brief Adds and registers a tooltip layer.

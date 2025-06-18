@@ -8,7 +8,6 @@
 #include "Subsystems/LocalPlayerSubsystem.h"
 #include "UiScreenTooltipManager.generated.h"
 
-
 UCLASS()
 class UISCREENFRAMEWORK_API UUiScreenTooltipManager : public ULocalPlayerSubsystem, public FTickableGameObject
 {
@@ -28,7 +27,7 @@ public:
 	FTooltipData* RegisterTooltip(const FTooltipData& TooltipData);
 
 	UFUNCTION(BlueprintCallable)
-	void DisplayTooltip(const FTooltipData& TooltipData);
+	void DisplayTooltip(const FTooltipData& TooltipRequestData);
 
 	UFUNCTION(BlueprintCallable)
 	void HideCurrentTooltip();
@@ -38,9 +37,10 @@ private:
 	void OnUiScreenChanged(const FGameplayTag PreviousScreenTag, const FGameplayTag CurrentScreenTag);
 	void SetBindings(bool bShouldBind);
 	void SetTooltipPosition(const TObjectPtr<UUserWidget>& TooltipWidget, FVector2D TooltipPosition) const;
+	static void SetViewModelForTooltipWidget(const UUserWidget* TooltipWidget, UBaseViewModel* TooltipViewModel);
 
 	UPROPERTY(Transient)
-	TMap<FGameplayTag, FTooltipData> Tooltips;
+	TMap<FName, FTooltipData> Tooltips;
 
-	FGameplayTag CurrentTooltipTag;
+	FName CurrentTooltip;
 };

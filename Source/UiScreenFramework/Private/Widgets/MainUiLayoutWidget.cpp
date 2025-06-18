@@ -3,8 +3,8 @@
 
 #include "Widgets/MainUiLayoutWidget.h"
 
-#include "CommonLazyWidget.h"
 #include "Logging/LogUiScreenManager.h"
+#include "Widgets/LayerWidget.h"
 
 UE_DISABLE_OPTIMIZATION
 
@@ -26,7 +26,7 @@ void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo)
 
 	for (int32 Index = TargetLayerIndex + 1; Index < Layers.Num(); ++Index)
 	{
-		if (UCommonLazyWidget* HigherLayerWidget = Layers[Index].LayerWidget)
+		if (ULayerWidget* HigherLayerWidget = Layers[Index].LayerWidget)
 		{
 			if (IsValid(HigherLayerWidget))
 			{
@@ -37,7 +37,7 @@ void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo)
 		}
 	}
 
-	if (UCommonLazyWidget* TargetLayerWidget = Layers[TargetLayerIndex].LayerWidget)
+	if (ULayerWidget* TargetLayerWidget = Layers[TargetLayerIndex].LayerWidget)
 	{
 		if (IsValid(TargetLayerWidget))
 		{
@@ -54,7 +54,7 @@ void UMainUiLayoutWidget::NativeDestruct()
 {
 	for (const FLayerInfo& Layer : Layers)
 	{
-		TObjectPtr<UCommonLazyWidget> LayerWidget = Layer.LayerWidget;
+		TObjectPtr<ULayerWidget> LayerWidget = Layer.LayerWidget;
 		if (IsValid(LayerWidget))
 		{
 			// LayerWidget->OnLoadingStateChanged().RemoveAll(this);
@@ -76,7 +76,7 @@ void UMainUiLayoutWidget::OnContentChanged(UUserWidget* UserWidget, FGameplayTag
 	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs UserWidget %s, Layer %s"), __FUNCTION__, *GetNameSafe(UserWidget), *Layer.ToString());
 }
 
-void UMainUiLayoutWidget::RegisterLayer(FGameplayTag LayerTag, UCommonLazyWidget* LayerWidget)
+void UMainUiLayoutWidget::RegisterLayer(FGameplayTag LayerTag, ULayerWidget* LayerWidget)
 {
 	if (IsDesignTime())
 	{

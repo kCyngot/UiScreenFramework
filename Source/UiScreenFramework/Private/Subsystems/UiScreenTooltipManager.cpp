@@ -12,15 +12,16 @@
 #include "Subsystems/UiScreenManager.h"
 #include "View/MVVMView.h"
 #include "ViewModels/BaseViewModel.h"
-UE_DISABLE_OPTIMIZATION
+
 void UUiScreenTooltipManager::Tick(float DeltaTime)
 {
-	if (CurrentTooltipTag.IsValid())
+	if (!CurrentTooltip.IsNone())
 	{
-		const FTooltipData CurrentTooltipData = Tooltips[CurrentTooltipTag];
+		const FTooltipData CurrentTooltipData = Tooltips[CurrentTooltip];
 		const FVector2D NewTooltipPosition = TooltipHelper::CalculateTooltipPosition(CurrentTooltipData);
 		SetTooltipPosition(CurrentTooltipData.TooltipWidget, NewTooltipPosition);
-		UE_LOG(LogUiScreenFramework, Verbose, TEXT("%hs CurrentTooltipTag %s, NewTooltipPosition %s"), __FUNCTION__, *CurrentTooltipTag.ToString(), *NewTooltipPosition.ToString());
+
+		UE_LOG(LogUiScreenFramework, Verbose, TEXT("%hs CurrentTooltipTag %s, NewTooltipPosition %s"), __FUNCTION__, *CurrentTooltip.ToString(), *NewTooltipPosition.ToString());
 	}
 }
 
@@ -41,29 +42,19 @@ void UUiScreenTooltipManager::Deinitialize()
 
 FTooltipData* UUiScreenTooltipManager::RegisterTooltip(const FTooltipData& TooltipCreationData)
 {
-	if (!ensureMsgf(TooltipCreationData.TooltipWidgetClass, TEXT("RegisterTooltip failed: TooltipWidgetClass is null for tag %s"), *TooltipCreationData.TooltipTag.ToString()))
+	if (!ensureMsgf(TooltipCreationData.TooltipWidgetClass, TEXT("RegisterTooltip failed: TooltipWidgetClass is not set")))
 	{
 		return nullptr;
 	}
-
+	const FName TooltipId = FName(TooltipCreationData.TooltipWidgetClass->GetFullName());
 	UUserWidget* TooltipWidget = CreateWidget<UUserWidget>(GetWorld(), TooltipCreationData.TooltipWidgetClass);
 	if (!IsValid(TooltipWidget))
 	{
-		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs RegisterTooltip failed: Could not create widget for tag %s"), __FUNCTION__, *TooltipCreationData.TooltipTag.ToString());
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs RegisterTooltip failed: Could not create widget for class %s"), __FUNCTION__, *TooltipId.ToString());
 		return nullptr;
 	}
 
-	if (IsValid(TooltipCreationData.TooltipViewModel))
-	{
-		if (UMVVMView* View = TooltipWidget->GetExtension<UMVVMView>())
-		{
-			View->SetViewModelByClass(TooltipCreationData.TooltipViewModel);
-		}
-		else
-		{
-			UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs RegisterTooltip: Widget for tag %s does not have a UMVVMView extension."), __FUNCTION__, *TooltipCreationData.TooltipTag.ToString());
-		}
-	}
+	SetViewModelForTooltipWidget(TooltipWidget, TooltipCreationData.TooltipViewModel);
 
 	UOverlay* TooltipLayer = TooltipHelper::GetTooltipLayer(this);
 	if (!ensure(TooltipLayer))
@@ -77,30 +68,41 @@ FTooltipData* UUiScreenTooltipManager::RegisterTooltip(const FTooltipData& Toolt
 
 	FTooltipData NewTooltipData = TooltipCreationData;
 	NewTooltipData.TooltipWidget = TooltipWidget;
-	Tooltips.Add(NewTooltipData.TooltipTag, NewTooltipData);
+	Tooltips.Add(TooltipId, NewTooltipData);
 
-	return &Tooltips[NewTooltipData.TooltipTag];
+	return &Tooltips[TooltipId];
 }
 
 void UUiScreenTooltipManager::DisplayTooltip(const FTooltipData& TooltipRequestData)
 {
-	const FGameplayTag& TooltipTag = TooltipRequestData.TooltipTag;
+	if (!ensureMsgf(TooltipRequestData.TooltipWidgetClass, TEXT("DisplayTooltip failed: TooltipWidgetClass is not set")))
+	{
+		return;
+	}
 
-	const FTooltipData* TooltipData = Tooltips.Find(TooltipTag);
+	const FName TooltipId = FName(TooltipRequestData.TooltipWidgetClass->GetFullName());
 
-	if (!TooltipData)
+	FTooltipData* TooltipData = Tooltips.Find(TooltipId);
+
+	if (TooltipData)
+	{
+		TooltipData->WidgetGeometry = TooltipRequestData.WidgetGeometry;
+
+		SetViewModelForTooltipWidget(TooltipData->TooltipWidget, TooltipRequestData.TooltipViewModel);
+	}
+	else
 	{
 		TooltipData = RegisterTooltip(TooltipRequestData);
 	}
 
 	if (!TooltipData)
 	{
-		UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs DisplayTooltip failed for tag %s. Could not find or register."), __FUNCTION__, *TooltipTag.ToString());
+		UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs DisplayTooltip failed for class %s. Could not find or register."), __FUNCTION__, *TooltipId.ToString());
 		return;
 	}
 
-	CurrentTooltipTag = TooltipData->TooltipTag;
-	UUserWidget* CurrentTooltipWidget = Tooltips[CurrentTooltipTag].TooltipWidget;
+	CurrentTooltip = TooltipId;
+	UUserWidget* CurrentTooltipWidget = Tooltips[CurrentTooltip].TooltipWidget;
 	if (ensure(CurrentTooltipWidget))
 	{
 		CurrentTooltipWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
@@ -109,7 +111,7 @@ void UUiScreenTooltipManager::DisplayTooltip(const FTooltipData& TooltipRequestD
 
 void UUiScreenTooltipManager::HideCurrentTooltip()
 {
-	FTooltipData* TooltipData = Tooltips.Find(CurrentTooltipTag);
+	FTooltipData* TooltipData = Tooltips.Find(CurrentTooltip);
 	if (!ensure(TooltipData))
 	{
 		return;
@@ -121,8 +123,8 @@ void UUiScreenTooltipManager::HideCurrentTooltip()
 		return;
 	}
 
-	CurrentTooltipWidget->SetVisibility(ESlateVisibility::SelfHitTestInvisible);
-	CurrentTooltipTag = FGameplayTag::EmptyTag;
+	CurrentTooltipWidget->SetVisibility(ESlateVisibility::Collapsed);
+	CurrentTooltip = NAME_None;
 }
 
 void UUiScreenTooltipManager::ClearAllTooltips()
@@ -134,10 +136,15 @@ void UUiScreenTooltipManager::ClearAllTooltips()
 			TooltipViewModel->Deinit();
 		}
 
-		TooltipData.TooltipWidget = nullptr;
+		if (UUserWidget* TooltipWidget = TooltipData.TooltipWidget)
+		{
+			TooltipWidget->RemoveFromParent();
+			TooltipWidget = nullptr;
+		}
 	}
 
-	CurrentTooltipTag = FGameplayTag::EmptyTag;
+	Tooltips.Empty();
+	CurrentTooltip = NAME_None;
 }
 
 void UUiScreenTooltipManager::OnUiScreenChanged(const FGameplayTag PreviousScreenTag, const FGameplayTag CurrentScreenTag)
@@ -180,4 +187,25 @@ void UUiScreenTooltipManager::SetTooltipPosition(const TObjectPtr<UUserWidget>& 
 		Slot->SetPadding(FMargin(TooltipPosition.X, TooltipPosition.Y, 0, 0));
 	}
 }
-UE_DISABLE_OPTIMIZATION
+
+void UUiScreenTooltipManager::SetViewModelForTooltipWidget(const UUserWidget* TooltipWidget, UBaseViewModel* TooltipViewModel)
+{
+	if (!IsValid(TooltipViewModel))
+	{
+		return;
+	}
+
+	if (!ensure(TooltipWidget))
+	{
+		return;
+	}
+
+	UMVVMView* View = TooltipWidget->GetExtension<UMVVMView>();
+	if (!IsValid(View))
+	{
+		UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs Widget %s does not have a view model %s"), __FUNCTION__, *GetNameSafe(TooltipWidget), *GetNameSafe(TooltipViewModel));
+		return;
+	}
+
+	View->SetViewModelByClass(TooltipViewModel);
+}

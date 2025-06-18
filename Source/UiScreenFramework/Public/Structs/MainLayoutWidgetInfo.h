@@ -10,10 +10,10 @@ struct FMainLayoutWidgetInfo
 	GENERATED_BODY()
 public:
 	UPROPERTY(Transient)
-	ULocalPlayer* LocalPlayer = nullptr;
+	TObjectPtr<ULocalPlayer> LocalPlayer;
 
 	UPROPERTY(Transient)
-	UMainUiLayoutWidget* MainLayoutWidget = nullptr;
+	TObjectPtr<UMainUiLayoutWidget> MainLayoutWidget;
 
 	UPROPERTY(Transient)
 	bool bAddedToViewport = false;
