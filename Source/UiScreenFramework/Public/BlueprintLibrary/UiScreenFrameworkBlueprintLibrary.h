@@ -10,6 +10,7 @@
 class UCommonActivatableWidget;
 class UUiScreenTooltipManager;
 class UUiScreenManager;
+
 DECLARE_DYNAMIC_DELEGATE_OneParam(FInitializeViewModelSignature, UScreenViewModel*, ViewModel);
 
 DECLARE_DYNAMIC_DELEGATE_OneParam(FInitializeScreenWidgetSignature, UCommonActivatableWidget*, ScreenWidget);

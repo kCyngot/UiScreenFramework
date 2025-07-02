@@ -30,11 +30,6 @@ ULayerWidget::ULayerWidget(const FObjectInitializer& Initializer)
 	SetVisibilityInternal(ESlateVisibility::Collapsed);
 }
 
-void ULayerWidget::AddWidgetInstance(UCommonActivatableWidget& ActivatableWidget)
-{
-	RegisterInstanceInternal(ActivatableWidget);
-}
-
 UCommonActivatableWidget* ULayerWidget::GetActiveWidget() const
 {
 	return MySwitcher ? ActivatableWidgetFromSlate(MySwitcher->GetActiveWidget()) : nullptr;
@@ -43,14 +38,6 @@ UCommonActivatableWidget* ULayerWidget::GetActiveWidget() const
 int32 ULayerWidget::GetNumWidgets() const
 {
 	return WidgetList.Num();
-}
-
-void ULayerWidget::RemoveWidget(UCommonActivatableWidget* WidgetToRemove)
-{
-	if (WidgetToRemove)
-	{
-		RemoveWidget(*WidgetToRemove);
-	}
 }
 
 void ULayerWidget::RemoveWidget(UCommonActivatableWidget& WidgetToRemove)
@@ -160,13 +147,6 @@ void ULayerWidget::SetSwitcherIndex(int32 TargetIndex, bool bInstantTransition /
 
 		MySwitcher->TransitionToIndex(TargetIndex, MySwitcher->IsTransitionPlaying() ? true : bInstantTransition);
 	}
-}
-
-UCommonActivatableWidget* ULayerWidget::BP_AddWidget(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass)
-{
-	return AddWidgetInternal(ActivatableWidgetClass, [](UCommonActivatableWidget&)
-	{
-	});
 }
 
 UCommonActivatableWidget* ULayerWidget::AddWidgetInternal(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass, TFunctionRef<void(UCommonActivatableWidget&)> InitFunc)

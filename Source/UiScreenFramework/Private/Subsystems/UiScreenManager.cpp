@@ -230,7 +230,7 @@ void UUiScreenManager::SetCurrentScreenState(const FScreenInitialData& ScreenIni
 	CurrentScreenState.LayerId = FoundViewInfo.LayerId;
 }
 
-void UUiScreenManager::CreateOrReuseScreenViewModel(const FScreenInitialData& ScreenInitialData, FUiScreenInfo& FoundViewInfo)
+void UUiScreenManager::CreateOrReuseScreenViewModel(const FScreenInitialData& ScreenInitialData, const FUiScreenInfo& FoundViewInfo)
 {
 	const TSoftClassPtr<UScreenViewModel> ScreeViewModelClass = FoundViewInfo.ScreenViewModelClass;
 	if (ScreeViewModelClass.IsNull())
@@ -239,18 +239,18 @@ void UUiScreenManager::CreateOrReuseScreenViewModel(const FScreenInitialData& Sc
 		return;
 	}
 
+	if (ScreenInitialData.bCleanUpExistingScreens)
+	{
+		CleanupAllScreenViewModels();
+	}
+	
 	UScreenViewModel* ScreenViewModel = GetScreenViewModel(FoundViewInfo.ScreenId);
 
-	if (!IsValid(ScreenViewModel) || ScreenInitialData.bCleanUpExistingScreens)
+	if (!IsValid(ScreenViewModel))
 	{
 		const UClass* ScreenViewModelClass = ScreeViewModelClass.LoadSynchronous();
 		ScreenViewModel = NewObject<UScreenViewModel>(this, ScreenViewModelClass);
 		ScreenViewModel->Init();
-
-		if (ScreenInitialData.bCleanUpExistingScreens)
-		{
-			CleanupAllScreenViewModels();
-		}
 
 		ScreenViewModelsMap.Add(FoundViewInfo.ScreenId, ScreenViewModel);
 	}

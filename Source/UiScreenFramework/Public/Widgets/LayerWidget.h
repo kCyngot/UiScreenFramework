@@ -33,7 +33,9 @@ public:
 		// Don't actually add the widget if the cast will fail
 		if (ActivatableWidgetClass && ActivatableWidgetClass->IsChildOf<ActivatableWidgetT>())
 		{
-			return Cast<ActivatableWidgetT>(AddWidgetInternal(ActivatableWidgetClass, [](UCommonActivatableWidget&) {}));
+			return Cast<ActivatableWidgetT>(AddWidgetInternal(ActivatableWidgetClass, [](UCommonActivatableWidget&)
+			{
+			}));
 		}
 		return nullptr;
 	}
@@ -49,21 +51,13 @@ public:
 		// Don't actually add the widget if the cast will fail
 		if (ActivatableWidgetClass && ActivatableWidgetClass->IsChildOf<ActivatableWidgetT>())
 		{
-			return Cast<ActivatableWidgetT>(AddWidgetInternal(ActivatableWidgetClass, [&InstanceInitFunc] (UCommonActivatableWidget& WidgetInstance) 
-				{
-					InstanceInitFunc(*CastChecked<ActivatableWidgetT>(&WidgetInstance));
-				}));
+			return Cast<ActivatableWidgetT>(AddWidgetInternal(ActivatableWidgetClass, [&InstanceInitFunc](UCommonActivatableWidget& WidgetInstance)
+			{
+				InstanceInitFunc(*CastChecked<ActivatableWidgetT>(&WidgetInstance));
+			}));
 		}
 		return nullptr;
 	}
-
-	/** 
-	 * Adds an activatable widget instance to the container. 
-	 * This instance is not pooled in any way by the stack and responsibility for ownership lies with the original creator of the widget.
-	 * 
-	 * NOTE: In general, it is *strongly* recommended that you opt for the class-based AddWidget above. This one is mostly just here for legacy support.
-	 */
-	void AddWidgetInstance(UCommonActivatableWidget& ActivatableWidget);
 
 	void RemoveWidget(UCommonActivatableWidget& WidgetToRemove);
 
@@ -80,13 +74,16 @@ public:
 
 	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetContainer)
 	void SetTransitionDuration(float Duration);
+
 	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetContainer)
 	float GetTransitionDuration() const;
 
 	DECLARE_EVENT_OneParam(UCommonActivatableWidgetContainerBase, FOnDisplayedWidgetChanged, UCommonActivatableWidget*);
+
 	FOnDisplayedWidgetChanged& OnDisplayedWidgetChanged() const { return OnDisplayedWidgetChangedEvent; }
 
 	DECLARE_EVENT_TwoParams(UCommonActivatableWidgetContainerBase, FTransitioningChanged, ULayerWidget* /*Widget*/, bool /*bIsTransitioning*/);
+
 	FTransitioningChanged OnTransitioningChanged;
 
 protected:
@@ -129,21 +126,6 @@ protected:
 	TSharedPtr<SCommonAnimatedSwitcher> MySwitcher;
 
 private:
-	/** 
-	 * Adds a widget of the given class to the container. 
-	 * Note that all widgets added to the container are pooled, so the caller should not try to cache and re-use the created widget.
-	 * 
-	 * It is possible for multiple instances of the same class to be added to the container at once, so any instance created in the past
-	 * is not guaranteed to be the one returned this time.
-	 *
-	 * So in practice, you should not trust that any prior state has been retained on the returned widget, and establish all appropriate properties every time.
-	 */
-	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetStack, meta = (DeterminesOutputType = ActivatableWidgetClass, DisplayName = "Push Widget"))
-	UCommonActivatableWidget* BP_AddWidget(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass);
-
-	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetContainer)
-	void RemoveWidget(UCommonActivatableWidget* WidgetToRemove);
-
 	UCommonActivatableWidget* AddWidgetInternal(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass, TFunctionRef<void(UCommonActivatableWidget&)> InitFunc);
 	void RegisterInstanceInternal(UCommonActivatableWidget& NewWidget);
 
@@ -176,13 +158,12 @@ class UISCREENFRAMEWORK_API ULayerWidgetStack : public ULayerWidget
 	GENERATED_BODY()
 
 public:
-
 	UCommonActivatableWidget* GetRootContent() const;
 
 protected:
 	virtual void SynchronizeProperties() override;
 	virtual void OnWidgetAddedToList(UCommonActivatableWidget& AddedWidget) override;
-	
+
 private:
 	/** Optional widget to auto-generate as the permanent root element of the stack */
 	UPROPERTY(EditAnywhere, Category = Content)
