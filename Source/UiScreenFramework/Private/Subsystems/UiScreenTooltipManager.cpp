@@ -13,6 +13,8 @@
 #include "View/MVVMView.h"
 #include "ViewModels/BaseViewModel.h"
 
+#include UE_INLINE_GENERATED_CPP_BY_NAME(UiScreenTooltipManager)
+
 void UUiScreenTooltipManager::Tick(float DeltaTime)
 {
 	if (!CurrentTooltip.IsNone())

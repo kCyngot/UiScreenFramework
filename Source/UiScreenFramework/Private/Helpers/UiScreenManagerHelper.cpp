@@ -1,7 +1,6 @@
 #include "Helpers/UiScreenManagerHelper.h"
 
 #include "Subsystems/UiScreenManager.h"
-
 FGameplayTag UiScreenManagerHelper::GetCurrentScreenTag(const UObject* WorldContextObject)
 {
 	const UUiScreenManager& UiScreenManager = UUiScreenManager::GetChecked(WorldContextObject);
@@ -11,9 +10,10 @@ FGameplayTag UiScreenManagerHelper::GetCurrentScreenTag(const UObject* WorldCont
 
 TObjectPtr<UScreenViewModel> UiScreenManagerHelper::GetCurrentScreenViewModel(const UObject* WorldContextObject)
 {
-	const UUiScreenManager& UiScreenManager = UUiScreenManager::GetChecked(WorldContextObject);
+	UUiScreenManager& UiScreenManager = UUiScreenManager::GetChecked(WorldContextObject);
+	const FGameplayTag CurrentScreenTag = GetCurrentScreenTag(WorldContextObject);
 
-	return UiScreenManager.GetCurrentUiScreenData().ScreeViewModel;
+	return UiScreenManager.GetScreenViewModel(CurrentScreenTag);
 }
 
 const UUiScreenFrameworkSettings& UiScreenManagerHelper::GetUiScreenFrameworkSettings()

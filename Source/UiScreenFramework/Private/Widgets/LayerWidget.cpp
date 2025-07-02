@@ -1,34 +1,116 @@
 ﻿#include "Widgets/LayerWidget.h"
 
 #include "CommonActivatableWidget.h"
+#include "Slate/SCommonAnimatedSwitcher.h"
 #include "Widgets/SOverlay.h"
-#include "Blueprint/UserWidget.h"
-#include "Engine/AssetManager.h"
-#include "Containers/Ticker.h"
-#include "Logging/LogUiScreenManager.h"
+#include "Widgets/Layout/SSpacer.h"
+#include "TimerManager.h"
 
-ULayerWidget::ULayerWidget()
+#include UE_INLINE_GENERATED_CPP_BY_NAME(LayerWidget)
+
+DEFINE_LOG_CATEGORY(LogLayerWidget);
+
+UCommonActivatableWidget* ActivatableWidgetFromSlate(const TSharedPtr<SWidget>& SlateWidget)
 {
-	// Set a default to prevent it being 0
-	TransitionDuration = 0.25f;
-	if (TransitionDuration <= 0.0f)
+	if (SlateWidget && SlateWidget != SNullWidget::NullWidget && ensure(SlateWidget->GetType().IsEqual(TEXT("SObjectWidget"))))
 	{
-		TransitionDuration = 0.01f;
+		UCommonActivatableWidget* ActivatableWidget = Cast<UCommonActivatableWidget>(StaticCastSharedPtr<SObjectWidget>(SlateWidget)->GetWidgetObject());
+		if (ensure(ActivatableWidget))
+		{
+			return ActivatableWidget;
+		}
 	}
+	return nullptr;
+}
+
+ULayerWidget::ULayerWidget(const FObjectInitializer& Initializer)
+	: Super(Initializer)
+	  , GeneratedWidgetsPool(*this)
+{
+	SetVisibilityInternal(ESlateVisibility::Collapsed);
+}
+
+void ULayerWidget::AddWidgetInstance(UCommonActivatableWidget& ActivatableWidget)
+{
+	RegisterInstanceInternal(ActivatableWidget);
+}
+
+UCommonActivatableWidget* ULayerWidget::GetActiveWidget() const
+{
+	return MySwitcher ? ActivatableWidgetFromSlate(MySwitcher->GetActiveWidget()) : nullptr;
+}
+
+int32 ULayerWidget::GetNumWidgets() const
+{
+	return WidgetList.Num();
+}
+
+void ULayerWidget::RemoveWidget(UCommonActivatableWidget* WidgetToRemove)
+{
+	if (WidgetToRemove)
+	{
+		RemoveWidget(*WidgetToRemove);
+	}
+}
+
+void ULayerWidget::RemoveWidget(UCommonActivatableWidget& WidgetToRemove)
+{
+	UE_LOG(LogLayerWidget, Verbose, TEXT("%hs WidgetToRemove: %s"), __FUNCTION__, *WidgetToRemove.GetName());
+
+	if (&WidgetToRemove == GetActiveWidget())
+	{
+		if (WidgetToRemove.IsActivated())
+		{
+			WidgetToRemove.DeactivateWidget();
+		}
+		else
+		{
+			UE_LOG(LogLayerWidget, Verbose, TEXT("%hs bRemoveDisplayedWidgetPostTransition is true"), __FUNCTION__);
+			bRemoveDisplayedWidgetPostTransition = true;
+		}
+	}
+	else
+	{
+		// Otherwise if the widget isn't actually being shown right now, yank it right on out
+		TSharedPtr<SWidget> CachedWidget = WidgetToRemove.GetCachedWidget();
+		if (CachedWidget && MySwitcher)
+		{
+			ReleaseWidget(CachedWidget.ToSharedRef());
+		}
+		else
+		{
+			GeneratedWidgetsPool.Release(&WidgetToRemove, true);
+			WidgetList.Remove(&WidgetToRemove);
+		}
+	}
+}
+
+void ULayerWidget::ClearWidgets()
+{
+	SetSwitcherIndex(0);
 }
 
 TSharedRef<SWidget> ULayerWidget::RebuildWidget()
 {
-	MyOverlay = SNew(SOverlay);
-
-	if (CurrentContent && CurrentContent->GetCachedWidget().IsValid())
-	{
-		CurrentContentWidget = CurrentContent->GetCachedWidget();
-		MyOverlay->AddSlot()
+	MyOverlay = SNew(SOverlay)
+		+ SOverlay::Slot()
 		[
-			CurrentContentWidget.ToSharedRef()
+			SAssignNew(MySwitcher, SCommonAnimatedSwitcher)
+			.TransitionCurveType(TransitionCurveType)
+			.TransitionDuration(TransitionDuration)
+			.TransitionType(TransitionType)
+			.TransitionFallbackStrategy(TransitionFallbackStrategy)
+			.OnActiveIndexChanged_UObject(this, &ULayerWidget::HandleActiveIndexChanged)
+			.OnIsTransitioningChanged_UObject(this, &ULayerWidget::HandleSwitcherIsTransitioningChanged)
+		]
+		+ SOverlay::Slot()
+		[
+			SAssignNew(MyInputGuard, SSpacer)
+			.Visibility(EVisibility::Collapsed)
 		];
-	}
+
+	// We always want a 0th slot to be able to animate the first real entry in and out
+	MySwitcher->AddSlot()[SNullWidget::NullWidget];
 
 	return MyOverlay.ToSharedRef();
 }
@@ -37,229 +119,238 @@ void ULayerWidget::ReleaseSlateResources(bool bReleaseChildren)
 {
 	Super::ReleaseSlateResources(bReleaseChildren);
 
-	CancelTransition();
-
 	MyOverlay.Reset();
-	CurrentContentWidget.Reset();
-	OldContentWidget.Reset();
+	MyInputGuard.Reset();
+	MySwitcher.Reset();
+	ReleasedWidgets.Empty();
+	WidgetList.Reset();
+
+	GeneratedWidgetsPool.ReleaseAll(true);
 }
 
-bool ULayerWidget::IsInTransition() const
+void ULayerWidget::OnWidgetRebuilt()
 {
-	return TickerHandle.IsValid() || StreamingHandle.IsValid();
+	Super::OnWidgetRebuilt();
+
+	if (!IsDesignTime())
+	{
+		HandleActiveIndexChanged(0);
+	}
 }
 
-void ULayerWidget::SetLazyContent(const TSoftClassPtr<UUserWidget> SoftWidget)
+void ULayerWidget::SetSwitcherIndex(int32 TargetIndex, bool bInstantTransition /*= false*/)
 {
-	// UE_LOG(LogUiScreenFramework, Log, TEXT("%hs SetLazyContent CurrentContent %s, SoftWidget.Get() %s"), __FUNCTION__,
-	// 		*GetNameSafe(CurrentContent), SoftWidget.IsNull() ? TEXT("Null") : *SoftWidget.Get()->GetName());
+	UE_LOG(LogLayerWidget, Verbose, TEXT("%hs TargetIndex: %d, bInstantTransition: %d, IsTransitionPlaying() %s, GetActiveWidgetIndex() %d"), __FUNCTION__, TargetIndex, bInstantTransition,
+		MySwitcher->IsTransitionPlaying() ? TEXT("true") : TEXT("false"), MySwitcher->GetActiveWidgetIndex());
 
-	CancelTransition();
-
-	if (SoftWidget.IsNull())
+	if (MySwitcher)
 	{
-		BeginTransition(nullptr);
-		return;
-	}
-
-	// // Don't do anything if we're already transitioning to this widget
-	// if (StreamingObjectPath == SoftWidget.ToSoftObjectPath())
-	// {
-	// 	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs StreamingObjectPath %s, SoftWidget.ToSoftObjectPath() %s, IsInTransition() %s"), __FUNCTION__,
-	// 		*StreamingObjectPath.ToString(), *SoftWidget.ToSoftObjectPath().ToString(), IsInTransition() ? TEXT("true") : TEXT("false"));
-	// 	return;
-	// }
-
-	// If the requested widget is the one we already have, do nothing.
-	if (CurrentContent && CurrentContent->GetClass() == SoftWidget.Get())
-	{
-		UE_LOG(LogUiScreenFramework, Log, TEXT("%hs CurrentContent->GetClass() %s, SoftWidget.Get() %s"), __FUNCTION__,
-			*CurrentContent->GetClass()->GetName(), *SoftWidget.Get()->GetName());
-		return;
-	}
-
-	TWeakObjectPtr<ULayerWidget> WeakThis(this);
-	RequestAsyncLoad(SoftWidget, [WeakThis, SoftWidget]()
-	{
-		if (ULayerWidget* StrongThis = WeakThis.Get())
+		if (DisplayedWidget && MySwitcher->GetActiveWidgetIndex() != TargetIndex)
 		{
-			if (ensure(SoftWidget.Get()))
+			DisplayedWidget->OnDeactivated().RemoveAll(this);
+			if (DisplayedWidget->IsActivated())
 			{
-				UUserWidget* NewUserWidget = CreateWidget<UUserWidget>(StrongThis->GetOwningPlayer(), SoftWidget.Get());
-				StrongThis->BeginTransition(NewUserWidget);
+				DisplayedWidget->DeactivateWidget();
+			}
+			else if (MySwitcher->GetActiveWidgetIndex() != 0)
+			{
+				bRemoveDisplayedWidgetPostTransition = true;
 			}
 		}
+
+		MySwitcher->TransitionToIndex(TargetIndex, MySwitcher->IsTransitionPlaying() ? true : bInstantTransition);
+	}
+}
+
+UCommonActivatableWidget* ULayerWidget::BP_AddWidget(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass)
+{
+	return AddWidgetInternal(ActivatableWidgetClass, [](UCommonActivatableWidget&)
+	{
 	});
 }
 
-void ULayerWidget::BeginTransition(UUserWidget* NewWidget)
+UCommonActivatableWidget* ULayerWidget::AddWidgetInternal(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass, TFunctionRef<void(UCommonActivatableWidget&)> InitFunc)
 {
-	OldContent = CurrentContent;
-	CurrentContent = NewWidget;
-
-	if (MyOverlay.IsValid())
+	if (UCommonActivatableWidget* WidgetInstance = GeneratedWidgetsPool.GetOrCreateInstance(ActivatableWidgetClass))
 	{
-		OldContentWidget = (OldContent) ? OldContent->GetCachedWidget() : nullptr;
+		InitFunc(*WidgetInstance);
+		RegisterInstanceInternal(*WidgetInstance);
+		return WidgetInstance;
+	}
+	return nullptr;
+}
 
-		if (OldContentWidget.IsValid())
+void ULayerWidget::RegisterInstanceInternal(UCommonActivatableWidget& NewWidget)
+{
+	UE_LOG(LogLayerWidget, Verbose, TEXT("%hs NewWidget: %s"), __FUNCTION__, *NewWidget.GetName());
+
+	if (ensure(!WidgetList.Contains(&NewWidget)))
+	{
+		WidgetList.Add(&NewWidget);
+		OnWidgetAddedToList(NewWidget);
+	}
+}
+
+void ULayerWidget::HandleSwitcherIsTransitioningChanged(bool bIsTransitioning)
+{
+	UE_LOG(LogLayerWidget, Verbose, TEXT("%hs bIsTransitioning: %d"), __FUNCTION__, bIsTransitioning);
+
+	// While the switcher is transitioning, put up the guard to intercept all input
+	MyInputGuard->SetVisibility(bIsTransitioning ? EVisibility::Visible : EVisibility::Collapsed);
+	OnTransitioningChanged.Broadcast(this, bIsTransitioning);
+}
+
+void ULayerWidget::HandleActiveWidgetDeactivated(UCommonActivatableWidget* DeactivatedWidget)
+{
+	UE_LOG(LogLayerWidget, Verbose, TEXT("%hs DeactivatedWidget: %s"), __FUNCTION__, *DeactivatedWidget->GetName());
+
+	// When the currently displayed widget deactivates, transition the switcher to the preceding slot (if it exists)
+	// We'll clean up this slot once the switcher index actually changes
+	if (ensure(DeactivatedWidget == DisplayedWidget) && MySwitcher && MySwitcher->GetActiveWidgetIndex() > 0)
+	{
+		DisplayedWidget->OnDeactivated().RemoveAll(this);
+		MySwitcher->TransitionToIndex(MySwitcher->GetActiveWidgetIndex() - 1);
+	}
+}
+
+void ULayerWidget::ReleaseWidget(const TSharedRef<SWidget>& WidgetToRelease)
+{
+	if (UCommonActivatableWidget* ActivatableWidget = ActivatableWidgetFromSlate(WidgetToRelease))
+	{
+		UE_LOG(LogLayerWidget, Verbose, TEXT("%hs WidgetToRelease: %s"), __FUNCTION__, *ActivatableWidget->GetName());
+
+		GeneratedWidgetsPool.Release(ActivatableWidget, true);
+		WidgetList.Remove(ActivatableWidget);
+	}
+	else
+	{
+		UE_LOG(LogLayerWidget, Warning, TEXT("%hs No matching Activatable Widget found."), __FUNCTION__);
+	}
+
+	const int32 RemovedIndex = MySwitcher->RemoveSlot(WidgetToRelease);
+	if (RemovedIndex != INDEX_NONE)
+	{
+		UE_LOG(LogLayerWidget, Verbose, TEXT("%hs Widget removed from slot %d"), __FUNCTION__, RemovedIndex);
+
+		ReleasedWidgets.Add(WidgetToRelease);
+		if (ReleasedWidgets.Num() == 1)
 		{
-			StartFadeOut();
-		}
-		else
-		{
-			StartFadeIn();
-		}
-	}
-}
-
-void ULayerWidget::StartFadeOut()
-{
-	if (!OldContentWidget.IsValid())
-	{
-		OnFadeOutFinished();
-		return;
-	}
-
-	CurrentFadeTime = 0.0f;
-
-	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &ULayerWidget::UpdateFadeOut));
-}
-
-bool ULayerWidget::UpdateFadeOut(float DeltaTime)
-{
-	CurrentFadeTime += DeltaTime;
-	const float Alpha = FMath::Clamp(1.0f - (CurrentFadeTime / TransitionDuration), 0.0f, 1.0f);
-
-	if (OldContentWidget.IsValid())
-	{
-		OldContentWidget->SetRenderOpacity(Alpha);
-	}
-
-	if (Alpha <= 0.0f)
-	{
-		OnFadeOutFinished();
-		return false;
-	}
-
-	return true;
-}
-
-void ULayerWidget::OnFadeOutFinished()
-{
-	TickerHandle.Reset();
-
-	if (MyOverlay.IsValid() && OldContentWidget.IsValid())
-	{
-		MyOverlay->RemoveSlot(OldContentWidget.ToSharedRef());
-	}
-
-	if (UCommonActivatableWidget* IncomingActivatable = Cast<UCommonActivatableWidget>(OldContent))
-	{
-		IncomingActivatable->DeactivateWidget();
-	}
-
-	OldContentWidget.Reset();
-	OldContent = nullptr;
-
-	StartFadeIn();
-}
-
-void ULayerWidget::StartFadeIn()
-{
-	if (!CurrentContent)
-	{
-		OnFadeInFinished();
-		return;
-	}
-
-	CurrentContentWidget = CurrentContent->TakeWidget();
-	CurrentContentWidget->SetRenderOpacity(0.0f);
-	MyOverlay->AddSlot()
-	[
-		CurrentContentWidget.ToSharedRef()
-	];
-
-	CurrentFadeTime = 0.0f;
-
-	if (UCommonActivatableWidget* IncomingActivatable = Cast<UCommonActivatableWidget>(CurrentContent))
-	{
-		IncomingActivatable->ActivateWidget();
-	}
-
-	TickerHandle = FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateUObject(this, &ULayerWidget::UpdateFadeIn));
-}
-
-bool ULayerWidget::UpdateFadeIn(float DeltaTime)
-{
-	CurrentFadeTime += DeltaTime;
-	const float Alpha = FMath::Clamp(CurrentFadeTime / TransitionDuration, 0.0f, 1.0f);
-
-	if (CurrentContentWidget.IsValid())
-	{
-		CurrentContentWidget->SetRenderOpacity(Alpha);
-	}
-
-	if (Alpha >= 1.0f)
-	{
-		OnFadeInFinished();
-		return false;
-	}
-
-	return true;
-}
-
-void ULayerWidget::OnFadeInFinished()
-{
-	TickerHandle.Reset();
-
-	if (CurrentContentWidget.IsValid())
-	{
-		CurrentContentWidget->SetRenderOpacity(1.0f);
-	}
-}
-
-void ULayerWidget::CancelTransition()
-{
-	if (StreamingHandle.IsValid())
-	{
-		StreamingHandle->CancelHandle();
-		StreamingHandle.Reset();
-	}
-
-	StreamingObjectPath.Reset();
-
-	if (TickerHandle.IsValid())
-	{
-		FTSTicker::GetCoreTicker().RemoveTicker(TickerHandle);
-		TickerHandle.Reset();
-	}
-
-	// CleanUpOldContent();
-}
-
-void ULayerWidget::RequestAsyncLoad(TSoftClassPtr<UObject> SoftObject, TFunction<void()>&& Callback)
-{
-	if (UObject* StrongObject = SoftObject.Get())
-	{
-		Callback();
-		return;
-	}
-
-	TWeakObjectPtr<ULayerWidget> WeakThis(this);
-	StreamingObjectPath = SoftObject.ToSoftObjectPath();
-	StreamingHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
-		StreamingObjectPath,
-		[WeakThis, Callback = MoveTemp(Callback), SoftObject]()
-		{
-			if (ULayerWidget* StrongThis = WeakThis.Get())
-			{
-				if (StrongThis->StreamingObjectPath != SoftObject.ToSoftObjectPath())
+			FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateWeakLambda(this,
+				[this](float)
 				{
-					return;
-				}
+					QUICK_SCOPE_CYCLE_COUNTER(STAT_UCommonActivatableWidgetContainerBase_ReleaseWidget);
+					ReleasedWidgets.Reset();
+					return false;
+				}));
+		}
+	}
+}
 
-				Callback();
-				StrongThis->StreamingHandle.Reset();
-			}
-		});
+void ULayerWidget::HandleActiveIndexChanged(int32 ActiveWidgetIndex)
+{
+	UE_LOG(LogLayerWidget, Verbose, TEXT("%hs ActiveWidgetIndex: %d"), __FUNCTION__, ActiveWidgetIndex);
+
+	// Remove all slots above the currently active one and release the widgets back to the pool
+	while (MySwitcher->GetNumWidgets() - 1 > ActiveWidgetIndex)
+	{
+		TSharedPtr<SWidget> WidgetToRelease = MySwitcher->GetWidget(MySwitcher->GetNumWidgets() - 1);
+
+		if (ensure(WidgetToRelease))
+		{
+			ReleaseWidget(WidgetToRelease.ToSharedRef());
+		}
+	}
+
+	// Also remove the widget that we just transitioned away from if desired
+	if (DisplayedWidget && bRemoveDisplayedWidgetPostTransition)
+	{
+		if (TSharedPtr<SWidget> DisplayedSlateWidget = DisplayedWidget->GetCachedWidget())
+		{
+			UE_LOG(LogLayerWidget, Verbose, TEXT("Remove the widget that we just transitioned away from: %s, bRemoveDisplayedWidgetPostTransition %s"), *GetNameSafe(DisplayedWidget),
+				bRemoveDisplayedWidgetPostTransition ? TEXT("true") : TEXT("false"));
+			ReleaseWidget(DisplayedSlateWidget.ToSharedRef());
+		}
+	}
+
+	bRemoveDisplayedWidgetPostTransition = false;
+
+	// Activate the widget that's now being displayed
+	DisplayedWidget = ActivatableWidgetFromSlate(MySwitcher->GetActiveWidget());
+	if (DisplayedWidget)
+	{
+		SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+
+		DisplayedWidget->OnDeactivated().AddUObject(this, &ULayerWidget::HandleActiveWidgetDeactivated, ToRawPtr(DisplayedWidget));
+		DisplayedWidget->ActivateWidget();
+
+		if (UWorld* MyWorld = GetWorld())
+		{
+			FTimerManager& TimerManager = MyWorld->GetTimerManager();
+			TimerManager.SetTimerForNextTick(FTimerDelegate::CreateWeakLambda(this, [this]() { InvalidateLayoutAndVolatility(); }));
+		}
+	}
+	else
+	{
+		SetVisibility(ESlateVisibility::Collapsed);
+	}
+
+	OnDisplayedWidgetChanged().Broadcast(DisplayedWidget);
+}
+
+void ULayerWidget::SetTransitionDuration(float Duration)
+{
+	TransitionDuration = Duration;
+	if (MySwitcher.IsValid())
+	{
+		MySwitcher->SetTransition(TransitionDuration, TransitionCurveType);
+	}
+}
+
+float ULayerWidget::GetTransitionDuration() const
+{
+	return TransitionDuration;
+}
+
+//////////////////////////////////////////////////////////////////////////
+// ULayerWidgetStack
+//////////////////////////////////////////////////////////////////////////
+
+UCommonActivatableWidget* ULayerWidgetStack::GetRootContent() const
+{
+	return RootContentWidget;
+}
+
+void ULayerWidgetStack::SynchronizeProperties()
+{
+	Super::SynchronizeProperties();
+
+#if WITH_EDITOR
+	if (IsDesignTime() && RootContentWidget && RootContentWidget->GetClass() != RootContentWidgetClass)
+	{
+		// At design time, account for the possibility of the preview class changing
+		if (RootContentWidget->GetCachedWidget())
+		{
+			MySwitcher->GetChildSlot(0)->DetachWidget();
+		}
+
+		RootContentWidget = nullptr;
+	}
+#endif
+
+	if (!RootContentWidget && RootContentWidgetClass)
+	{
+		RootContentWidget = CreateWidget<UCommonActivatableWidget>(this, RootContentWidgetClass);
+		MySwitcher->GetChildSlot(0)->AttachWidget(RootContentWidget->TakeWidget());
+		SetVisibility(ESlateVisibility::SelfHitTestInvisible);
+	}
+}
+
+void ULayerWidgetStack::OnWidgetAddedToList(UCommonActivatableWidget& AddedWidget)
+{
+	if (MySwitcher)
+	{
+		MySwitcher->AddSlot()[AddedWidget.TakeWidget()];
+
+		SetSwitcherIndex(MySwitcher->GetNumWidgets() - 1);
+	}
 }

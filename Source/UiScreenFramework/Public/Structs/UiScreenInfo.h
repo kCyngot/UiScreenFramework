@@ -4,7 +4,7 @@
 
 #include "UiScreenInfo.generated.h"
 
-class UCommonUserWidget;
+class UCommonActivatableWidget;
 class UScreenViewModel;
 
 USTRUCT(BlueprintType)
@@ -22,9 +22,9 @@ struct FUiScreenInfo
 
 	// Screen widget class
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly)
-	TSoftClassPtr<UCommonUserWidget> ScreenClass;
+	TSoftClassPtr<UCommonActivatableWidget> ScreenClass;
 
 	// Main view model class
 	UPROPERTY(EditDefaultsOnly)
-	TSoftClassPtr<UScreenViewModel> ScreeViewModelClass;
+	TSoftClassPtr<UScreenViewModel> ScreenViewModelClass;
 };

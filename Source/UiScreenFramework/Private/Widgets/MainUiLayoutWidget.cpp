@@ -1,14 +1,102 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Widgets/MainUiLayoutWidget.h"
 
+#include "CommonActivatableWidget.h"
 #include "Logging/LogUiScreenManager.h"
+#include "Subsystems/UiScreenManager.h"
 #include "Widgets/LayerWidget.h"
 
-UE_DISABLE_OPTIMIZATION
+#include UE_INLINE_GENERATED_CPP_BY_NAME(MainUiLayoutWidget)
 
-void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo)
+ULayerWidget* UMainUiLayoutWidget::GetLayerForScreenInfo(const FUiScreenInfo& UiScreenInfo)
+{
+	FGameplayTag LayerId = UiScreenInfo.LayerId;
+	FLayerInfo* TargetLayerInfo = Layers.FindByPredicate(
+		[LayerId](const FLayerInfo& Info)
+		{
+			return Info.LayerId == LayerId;
+		});
+
+	if (!TargetLayerInfo)
+	{
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs: Cannot find layer info for layer %s."), __FUNCTION__, *UiScreenInfo.LayerId.ToString());
+		return nullptr;
+	}
+
+	ULayerWidget* FoundLayer = TargetLayerInfo->LayerWidget;
+
+	if (!IsValid(FoundLayer))
+	{
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs: Layer widget is nullptr for layer %s."), __FUNCTION__, *UiScreenInfo.LayerId.ToString());
+		return nullptr;
+	}
+
+	return FoundLayer;
+}
+
+bool UMainUiLayoutWidget::TrySwitchToExistingScreenInLayer(const FUiScreenInfo& UiScreenInfo)
+{
+	ULayerWidget* CurrentLayer = GetLayerForScreenInfo(UiScreenInfo);
+	if (!CurrentLayer)
+	{
+		return false;
+	}
+
+	TArray<UCommonActivatableWidget*> ActiveWidgetList = CurrentLayer->GetWidgetList();
+	FSoftObjectPath StreamingObjectPath = UiScreenInfo.ScreenClass.ToSoftObjectPath();
+	const int32 FoundIndex = ActiveWidgetList.IndexOfByPredicate([StreamingObjectPath](UCommonActivatableWidget* Widget)
+	{
+		if (IsValid(Widget))
+		{
+			const FSoftObjectPath WidgetClassPath = Widget->GetClass()->GetPathName();
+
+			return WidgetClassPath == StreamingObjectPath;
+		}
+
+		return false;
+	});
+
+	if (ActiveWidgetList.IsValidIndex(FoundIndex))
+	{
+		CurrentLayer->SetSwitcherIndex(FoundIndex + 1);
+		return true;
+	}
+
+	return false;
+}
+
+void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo, const bool bCleanUpExistingScreens)
+{
+	if (bCleanUpExistingScreens)
+	{
+		for (const FLayerInfo& Layer : Layers)
+		{
+			TObjectPtr<ULayerWidget> LayerWidget = Layer.LayerWidget;
+			if (IsValid(LayerWidget))
+			{
+				LayerWidget->ClearWidgets();
+			}
+		}
+	}
+	else
+	{
+		RemoveScreensFromHigherLayer(UiScreenInfo);
+		if (TrySwitchToExistingScreenInLayer(UiScreenInfo))
+		{
+			return;
+		}
+	}
+
+	ULayerWidget* LayerWidget = GetLayerForScreenInfo(UiScreenInfo);
+
+	if (IsValid(LayerWidget))
+	{
+		LayerWidget->AddWidget(UiScreenInfo.ScreenClass.Get());
+	}
+}
+
+void UMainUiLayoutWidget::RemoveScreensFromHigherLayer(const FUiScreenInfo& UiScreenInfo)
 {
 	const FGameplayTag TargetLayerId = UiScreenInfo.LayerId;
 
@@ -30,24 +118,16 @@ void UMainUiLayoutWidget::SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo)
 		{
 			if (IsValid(HigherLayerWidget))
 			{
-				// Setting content to nullptr will clear the widget.
 				UE_LOG(LogUiScreenFramework, Log, TEXT("%hs: Layer %s content is cleared."), __FUNCTION__, *GetNameSafe(HigherLayerWidget));
-				HigherLayerWidget->SetLazyContent(nullptr);
+				HigherLayerWidget->ClearWidgets();
 			}
 		}
 	}
+}
 
-	if (ULayerWidget* TargetLayerWidget = Layers[TargetLayerIndex].LayerWidget)
-	{
-		if (IsValid(TargetLayerWidget))
-		{
-			TargetLayerWidget->SetLazyContent(UiScreenInfo.ScreenClass);
-		}
-		else
-		{
-			UE_LOG(LogUiScreenFramework, Error, TEXT("%hs: TargetLayerWidget is invalid for layer %s."), __FUNCTION__, *TargetLayerId.ToString());
-		}
-	}
+UCommonActivatableWidget* UMainUiLayoutWidget::GetCurrentScreenWidget()
+{
+	return CurrentScreenWidget.IsValid() ? CurrentScreenWidget.Get() : nullptr;
 }
 
 void UMainUiLayoutWidget::NativeDestruct()
@@ -57,23 +137,18 @@ void UMainUiLayoutWidget::NativeDestruct()
 		TObjectPtr<ULayerWidget> LayerWidget = Layer.LayerWidget;
 		if (IsValid(LayerWidget))
 		{
-			// LayerWidget->OnLoadingStateChanged().RemoveAll(this);
-			// LayerWidget->OnContentChanged().RemoveAll(this);
-			LayerWidget->SetLazyContent(nullptr);
+			LayerWidget->OnDisplayedWidgetChanged().RemoveAll(this);
+			LayerWidget->ClearWidgets();
 		}
 	}
 
 	Super::NativeConstruct();
 }
 
-void UMainUiLayoutWidget::OnLoadingStateChanged(bool bIsLoading)
+void UMainUiLayoutWidget::OnDisplayedWidgetChanged(UCommonActivatableWidget* CommonActivatableWidget)
 {
-	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs bIsLoading %s"), __FUNCTION__, bIsLoading ? TEXT("true") : TEXT("false"));
-}
-
-void UMainUiLayoutWidget::OnContentChanged(UUserWidget* UserWidget, FGameplayTag Layer)
-{
-	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs UserWidget %s, Layer %s"), __FUNCTION__, *GetNameSafe(UserWidget), *Layer.ToString());
+	CurrentScreenWidget = CommonActivatableWidget;
+	OnDisplayedWidgetChangedDelegate.ExecuteIfBound(CommonActivatableWidget);
 }
 
 void UMainUiLayoutWidget::RegisterLayer(FGameplayTag LayerTag, ULayerWidget* LayerWidget)
@@ -95,15 +170,13 @@ void UMainUiLayoutWidget::RegisterLayer(FGameplayTag LayerTag, ULayerWidget* Lay
 		return;
 	}
 
-	// LayerWidget->OnLoadingStateChanged().AddUObject(this, &UMainUiLayoutWidget::OnLoadingStateChanged);
-	// LayerWidget->OnContentChanged().AddUObject(this, &UMainUiLayoutWidget::OnContentChanged, LayerTag);
+	LayerWidget->OnDisplayedWidgetChanged().AddUObject(this, &UMainUiLayoutWidget::OnDisplayedWidgetChanged);
 
 	Layers.Emplace(FLayerInfo{LayerTag, LayerWidget});
 }
 
 void UMainUiLayoutWidget::RegisterTooltipLayer(UOverlay* LayerWidget)
 {
-	
 	if (!LayerWidget)
 	{
 		UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs: Attempted to register an invalid LayerWidget for the tooltip layer."), __FUNCTION__);
@@ -112,5 +185,3 @@ void UMainUiLayoutWidget::RegisterTooltipLayer(UOverlay* LayerWidget)
 
 	TooltipLayer = LayerWidget;
 }
-
-UE_ENABLE_OPTIMIZATION

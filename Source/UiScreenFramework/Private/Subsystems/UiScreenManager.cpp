@@ -1,15 +1,16 @@
 ﻿// Fill out your copyright notice in the Description page of Project Settings.
 
-
 #include "Subsystems/UiScreenManager.h"
 
+#include "CommonActivatableWidget.h"
 #include "DeveloperSettings/UiScreenFrameworkSettings.h"
+#include "Engine/AssetManager.h"
 #include "Helpers/UiScreenManagerHelper.h"
 #include "Kismet/GameplayStatics.h"
 #include "Logging/LogUiScreenManager.h"
 #include "ViewModels/ScreenViewModel.h"
+#include UE_INLINE_GENERATED_CPP_BY_NAME(UiScreenManager)
 
-UE_DISABLE_OPTIMIZATION
 UUiScreenManager* UUiScreenManager::Get(const AController* Controller)
 {
 	if (const APlayerController* PlayerController = Cast<APlayerController>(Controller))
@@ -34,7 +35,7 @@ UUiScreenManager* UUiScreenManager::Get(const UObject* WorldContextObject)
 	const APlayerController* PlayerController = UGameplayStatics::GetPlayerController(WorldContextObject, 0);
 	if (!IsValid(PlayerController))
 	{
-		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs : PlayerController is invalid cannot get UiScreenManager"),__FUNCTION__);
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs : PlayerController is invalid cannot get UiScreenManager"), __FUNCTION__);
 		return nullptr;
 	}
 
@@ -64,6 +65,16 @@ void UUiScreenManager::Initialize(FSubsystemCollectionBase& Collection)
 	}
 }
 
+void UUiScreenManager::CleanupAllScreenViewModels()
+{
+	for (auto& [ScreenTag, ScreenViewModel] : ScreenViewModelsMap)
+	{
+		DeinitScreenViewModel(ScreenViewModel);
+	}
+
+	ScreenViewModelsMap.Empty();
+}
+
 void UUiScreenManager::Deinitialize()
 {
 	ULocalPlayer* LocalPlayer = GetLocalPlayer();
@@ -71,7 +82,20 @@ void UUiScreenManager::Deinitialize()
 
 	LocalPlayer->OnPlayerControllerChanged().RemoveAll(this);
 
-	DeinitCurrentScreenViewModel();
+	CleanupAllScreenViewModels();
+
+	ScreensToDisplayQueue.Empty();
+	InitializeScreenWidgetCallback.Reset();
+
+	if (UMainUiLayoutWidget* MainLayoutWidget = MainLayoutWidgetInfo.MainLayoutWidget)
+	{
+		MainLayoutWidget->OnDisplayedWidgetChangedDelegate.Unbind();
+	}
+
+	if (StreamingHandle.IsValid())
+	{
+		StreamingHandle.Reset();
+	}
 
 	Super::Deinitialize();
 }
@@ -84,6 +108,41 @@ void UUiScreenManager::InitializeUiScreenManager(APlayerController* PlayerContro
 	}
 
 	CreateMainLayoutWidget(PlayerController);
+}
+
+void UUiScreenManager::OnScreenWidgetClassLoaded(FScreenInitialData ScreenInitialData)
+{
+	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs Screen %s"), __FUNCTION__, *ScreenInitialData.ScreenTag.ToString());
+
+	FUiScreenInfo* FoundViewInfo = GetUiScreenInfo(ScreenInitialData.ScreenTag);
+	if (!FoundViewInfo)
+	{
+		return;
+	}
+
+	UMainUiLayoutWidget* MainLayoutWidget = MainLayoutWidgetInfo.MainLayoutWidget;
+	if (!ensure(MainLayoutWidget))
+	{
+		return;
+	}
+
+	CreateOrReuseScreenViewModel(ScreenInitialData, *FoundViewInfo);
+	SetCurrentScreenState(ScreenInitialData, *FoundViewInfo);
+	InitializeScreenWidgetCallback = ScreenInitialData.InitializeScreenWidgetCallback;
+
+	MainLayoutWidget->SetWidgetForLayer(*FoundViewInfo, ScreenInitialData.bCleanUpExistingScreens);
+
+	const FGameplayTag PreviousScreenTag = CurrentScreenState.ScreenId;
+	const FGameplayTag NewScreenTag = FoundViewInfo->ScreenId;
+	BroadcastScreenChange(PreviousScreenTag, NewScreenTag);
+
+	// check whether other screens waiting to be displayed
+	FScreenInitialData EnqueuedScreenData;
+	ScreensToDisplayQueue.Dequeue(EnqueuedScreenData);
+	if (EnqueuedScreenData.ScreenTag.IsValid())
+	{
+		ChangeUiScreen(EnqueuedScreenData);
+	}
 }
 
 void UUiScreenManager::CreateMainLayoutWidget(APlayerController* PlayerController)
@@ -104,7 +163,7 @@ void UUiScreenManager::CreateMainLayoutWidget(APlayerController* PlayerControlle
 		{
 			UMainUiLayoutWidget* MainUiLayoutWidget = CreateWidget<UMainUiLayoutWidget>(PlayerController, LayoutWidgetClassLoaded);
 			MainLayoutWidgetInfo = {LocalPlayer, MainUiLayoutWidget, true};
-
+			MainUiLayoutWidget->OnDisplayedWidgetChangedDelegate.BindUObject(this, &UUiScreenManager::CallInitializeScreenWidgetCallback);
 			AddMainLayoutToViewport(MainUiLayoutWidget);
 		}
 	}
@@ -129,59 +188,76 @@ void UUiScreenManager::RemoveMainLayoutWidget()
 	MainLayoutWidgetInfo.bAddedToViewport = false;
 }
 
-void UUiScreenManager::DeinitCurrentScreenViewModel()
+void UUiScreenManager::DeinitScreenViewModel(UScreenViewModel* ScreenViewModel)
 {
-	if (IsValid(CurrentScreenState.ScreeViewModel))
+	if (IsValid(ScreenViewModel))
 	{
-		CurrentScreenState.ScreeViewModel->Deinit();
-		CurrentScreenState.ScreeViewModel = nullptr;
+		ScreenViewModel->Deinit();
+		ScreenViewModel = nullptr;
 	}
 }
 
-void UUiScreenManager::SetCurrentScreenState(const FUiScreenInfo& FoundViewInfo)
+void UUiScreenManager::SetCurrentScreenState(const FScreenInitialData& ScreenInitialData, const FUiScreenInfo& FoundViewInfo)
 {
 	const FGameplayTag& ScreenId = FoundViewInfo.ScreenId;
+	if (CurrentScreenState.ScreenId.IsValid())
+	{
+		CurrentScreenState.PreviousScreens.Add(CurrentScreenState.ScreenId);
+	}
 
-	int32 ExistingScreenIndex;
+	if (ScreenInitialData.bCleanUpExistingScreens)
+	{
+		CurrentScreenState.PreviousScreens.Empty();
+	}
+
+	int32 ExistingScreenIndex = -1;
 	if (CurrentScreenState.PreviousScreens.Find(ScreenId, ExistingScreenIndex))
 	{
 		const int32 NumElementsToRemove = CurrentScreenState.PreviousScreens.Num() - ExistingScreenIndex;
 
-		CurrentScreenState.PreviousScreens.RemoveAt(ExistingScreenIndex, NumElementsToRemove);
-	}
-	else
-	{
-		if (CurrentScreenState.ScreenId.IsValid())
+		for (int32 Index = ExistingScreenIndex + 1; Index < CurrentScreenState.PreviousScreens.Num(); ++Index)
 		{
-			CurrentScreenState.PreviousScreens.Add(CurrentScreenState.ScreenId);
+			FGameplayTag RemovedTag = CurrentScreenState.PreviousScreens[Index];
+			UScreenViewModel* ScreenViewModel = GetScreenViewModel(RemovedTag);
+			DeinitScreenViewModel(ScreenViewModel);
+			ScreenViewModelsMap.Remove(RemovedTag);
 		}
+
+		CurrentScreenState.PreviousScreens.RemoveAt(ExistingScreenIndex, NumElementsToRemove);
 	}
 
 	CurrentScreenState.ScreenId = ScreenId;
 	CurrentScreenState.LayerId = FoundViewInfo.LayerId;
 }
 
-void UUiScreenManager::CreateAndInitializeScreenViewModel(TFunction<void(UScreenViewModel*)> InitializeViewModelCallback, const FUiScreenInfo& FoundViewInfo)
+void UUiScreenManager::CreateOrReuseScreenViewModel(const FScreenInitialData& ScreenInitialData, FUiScreenInfo& FoundViewInfo)
 {
-	TSoftClassPtr<UScreenViewModel> ScreeViewModelClass = FoundViewInfo.ScreeViewModelClass;
-
-	if (!ScreeViewModelClass.IsNull())
-	{
-		UScreenViewModel* ScreenViewModel = nullptr;
-		const UClass* ScreenViewModelClass = ScreeViewModelClass.LoadSynchronous();
-		ScreenViewModel = NewObject<UScreenViewModel>(this, ScreenViewModelClass);
-		CurrentScreenState.ScreeViewModel = ScreenViewModel;
-
-		ScreenViewModel->Init();
-
-		if (InitializeViewModelCallback)
-		{
-			InitializeViewModelCallback(ScreenViewModel);
-		}
-	}
-	else
+	const TSoftClassPtr<UScreenViewModel> ScreeViewModelClass = FoundViewInfo.ScreenViewModelClass;
+	if (ScreeViewModelClass.IsNull())
 	{
 		UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs ScreeViewModelClass is empty for %s Screen View model won't be created"), __FUNCTION__, *FoundViewInfo.ScreenId.ToString());
+		return;
+	}
+
+	UScreenViewModel* ScreenViewModel = GetScreenViewModel(FoundViewInfo.ScreenId);
+
+	if (!IsValid(ScreenViewModel) || ScreenInitialData.bCleanUpExistingScreens)
+	{
+		const UClass* ScreenViewModelClass = ScreeViewModelClass.LoadSynchronous();
+		ScreenViewModel = NewObject<UScreenViewModel>(this, ScreenViewModelClass);
+		ScreenViewModel->Init();
+
+		if (ScreenInitialData.bCleanUpExistingScreens)
+		{
+			CleanupAllScreenViewModels();
+		}
+
+		ScreenViewModelsMap.Add(FoundViewInfo.ScreenId, ScreenViewModel);
+	}
+
+	if (ScreenInitialData.InitializeViewModelCallback)
+	{
+		ScreenInitialData.InitializeViewModelCallback(ScreenViewModel);
 	}
 }
 
@@ -191,23 +267,12 @@ void UUiScreenManager::BroadcastScreenChange(const FGameplayTag PreviousScreenTa
 	OnUiScreenChanged_BP.Broadcast(PreviousScreenTag, CurrentScreenTag);
 }
 
-void UUiScreenManager::ChangeUiScreen(const FGameplayTag ScreenTag, TFunction<void(UScreenViewModel*)> InitializeViewModelCallback)
+void UUiScreenManager::ChangeUiScreen(FScreenInitialData ScreenInitialData)
 {
-	const UUiScreenFrameworkSettings& ScreenFrameworkSettings = UiScreenManagerHelper::GetUiScreenFrameworkSettings();
-	UUiScreensData* UiScreensData = ScreenFrameworkSettings.GetViewsData();
-	const FUiScreenInfo* FoundViewInfo = UiScreensData->Screens.FindByPredicate([ScreenTag](const FUiScreenInfo& ViewInfo)
-	{
-		return ViewInfo.ScreenId == ScreenTag;
-	});
+	const FGameplayTag ScreenTag = ScreenInitialData.ScreenTag;
 
+	const FUiScreenInfo* FoundViewInfo = GetUiScreenInfo(ScreenTag);
 	if (!FoundViewInfo)
-	{
-		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs ViewInfo with ScreenTag %s hasn't been found in View Data asset"), __FUNCTION__, *ScreenTag.ToString());
-		return;
-	}
-
-	UMainUiLayoutWidget* MainLayoutWidget = MainLayoutWidgetInfo.MainLayoutWidget;
-	if (!ensure(MainLayoutWidget))
 	{
 		return;
 	}
@@ -218,17 +283,31 @@ void UUiScreenManager::ChangeUiScreen(const FGameplayTag ScreenTag, TFunction<vo
 		return;
 	}
 
-	DeinitCurrentScreenViewModel();
+	TSoftClassPtr<UCommonActivatableWidget> ScreenWidgetSoftClass = FoundViewInfo->ScreenClass;
+	if (ScreenWidgetSoftClass.IsNull())
+	{
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs Screen class isn't set up for screen %s"), __FUNCTION__, *ScreenTag.ToString());
+		return;
+	}
 
-	CreateAndInitializeScreenViewModel(InitializeViewModelCallback, *FoundViewInfo);
-	const FGameplayTag PreviousScreenTag = CurrentScreenState.ScreenId;
-	const FGameplayTag CurrentScreenTag = FoundViewInfo->ScreenId;
+	if (StreamingHandle && StreamingHandle->IsLoadingInProgress())
+	{
+		UE_LOG(LogUiScreenFramework, Log, TEXT("%hs Enqueue %s screen"), __FUNCTION__, *ScreenTag.ToString());
+		ScreensToDisplayQueue.Enqueue(ScreenInitialData);
+		return;
+	}
 
-	SetCurrentScreenState(*FoundViewInfo);
-
-	MainLayoutWidget->SetWidgetForLayer(*FoundViewInfo);
-
-	BroadcastScreenChange(PreviousScreenTag, CurrentScreenTag);
+	if (ScreenWidgetSoftClass.IsValid())
+	{
+		OnScreenWidgetClassLoaded(ScreenInitialData);
+	}
+	else
+	{
+		StreamingHandle = UAssetManager::GetStreamableManager().RequestAsyncLoad(
+			ScreenWidgetSoftClass.ToSoftObjectPath(),
+			FStreamableDelegate::CreateUObject(this, &ThisClass::OnScreenWidgetClassLoaded, ScreenInitialData)
+			);
+	}
 }
 
 void UUiScreenManager::GoToThePreviousUiScreen()
@@ -239,12 +318,12 @@ void UUiScreenManager::GoToThePreviousUiScreen()
 		return;
 	}
 
-	ChangeUiScreen(CurrentScreenState.PreviousScreens.Last());
+	ChangeUiScreen(FScreenInitialData(CurrentScreenState.PreviousScreens.Last()));
 }
 
 void UUiScreenManager::AddMainLayoutToViewport(UMainUiLayoutWidget* LayoutWidget)
 {
-	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs [%s] is adding the root layout [%s] to the viewport"), __FUNCTION__, *GetName(), *GetNameSafe(LayoutWidget));
+	UE_LOG(LogUiScreenFramework, Log, TEXT("%hs %s is adding the root layout %s to the viewport"), __FUNCTION__, *GetName(), *GetNameSafe(LayoutWidget));
 
 	ULocalPlayer* LocalPlayer = GetLocalPlayer();
 	check(IsValid(LocalPlayer));
@@ -259,7 +338,7 @@ void UUiScreenManager::RemoveMainLayoutFromViewport(UMainUiLayoutWidget& LayoutW
 	const TWeakPtr<SWidget> LayoutSlateWidget = LayoutWidget.GetCachedWidget();
 	if (LayoutSlateWidget.IsValid())
 	{
-		UE_LOG(LogUiScreenFramework, Log, TEXT("[%s] is removing root layout [%s] from the viewport"), *GetName(), *LayoutWidget.GetName());
+		UE_LOG(LogUiScreenFramework, Log, TEXT("%s is removing root layout %s from the viewport"), *GetName(), *LayoutWidget.GetName());
 
 		LayoutWidget.RemoveFromParent();
 		if (LayoutSlateWidget.IsValid())
@@ -269,4 +348,51 @@ void UUiScreenManager::RemoveMainLayoutFromViewport(UMainUiLayoutWidget& LayoutW
 		}
 	}
 }
-UE_ENABLE_OPTIMIZATION
+
+FUiScreenInfo* UUiScreenManager::GetUiScreenInfo(const FGameplayTag ScreenTag)
+{
+	const UUiScreenFrameworkSettings& ScreenFrameworkSettings = UiScreenManagerHelper::GetUiScreenFrameworkSettings();
+	UUiScreensData* UiScreensData = ScreenFrameworkSettings.GetViewsData();
+	FUiScreenInfo* FoundViewInfo = UiScreensData->Screens.FindByPredicate([ScreenTag](const FUiScreenInfo& ViewInfo)
+	{
+		return ViewInfo.ScreenId == ScreenTag;
+	});
+
+	if (!FoundViewInfo)
+	{
+		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs ViewInfo with ScreenTag %s hasn't been found in View Data asset"), __FUNCTION__, *ScreenTag.ToString());
+		return nullptr;
+	}
+
+	return FoundViewInfo;
+}
+
+UScreenViewModel* UUiScreenManager::GetScreenViewModel(const FGameplayTag ScreenTag)
+{
+	TObjectPtr<UScreenViewModel>* ScreenViewModelPtr = ScreenViewModelsMap.Find(ScreenTag);
+	if (!ScreenViewModelPtr)
+	{
+		return nullptr;
+	}
+
+	return *ScreenViewModelPtr;
+}
+
+UCommonActivatableWidget* UUiScreenManager::GetScreenWidget() const
+{
+	UMainUiLayoutWidget* MainLayoutWidget = MainLayoutWidgetInfo.MainLayoutWidget;
+	if (!ensureAlways(MainLayoutWidget))
+	{
+		return nullptr;
+	}
+
+	return MainLayoutWidget->GetCurrentScreenWidget();
+}
+
+void UUiScreenManager::CallInitializeScreenWidgetCallback(UCommonActivatableWidget* ScreenWidget)
+{
+	if (InitializeScreenWidgetCallback)
+	{
+		InitializeScreenWidgetCallback(ScreenWidget);
+	}
+}

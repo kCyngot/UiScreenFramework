@@ -20,13 +20,8 @@ struct FUiScreenState
 	UPROPERTY(BlueprintReadOnly, meta = (Categories = "UI.Layer"))
 	FGameplayTag LayerId = FGameplayTag::EmptyTag;
 
-	// Screen widget
 	UPROPERTY(BlueprintReadOnly)
-	TObjectPtr<UCommonUserWidget> ScreenWidget;
-
-	// Main view model
-	UPROPERTY(BlueprintReadOnly)
-	TObjectPtr<UScreenViewModel> ScreeViewModel;
+	bool bIsTransitioning = false;
 
 	// Array of previous screens
 	UPROPERTY(BlueprintReadOnly)
@@ -36,11 +31,9 @@ struct FUiScreenState
 	{
 	}
 
-	FUiScreenState(const FGameplayTag InScreenId, const FGameplayTag InLayerId, UCommonUserWidget* InScreenWidget, UScreenViewModel* InScreeViewModel)
+	FUiScreenState(const FGameplayTag InScreenId, const FGameplayTag InLayerId)
 		: ScreenId(InScreenId)
-		, LayerId(InLayerId)
-		, ScreenWidget(InScreenWidget)
-		, ScreeViewModel(InScreeViewModel)
+		  , LayerId(InLayerId)
 	{
 	}
 

@@ -6,6 +6,7 @@
 #include "Helpers/UiScreenManagerHelper.h"
 #include "Logging/LogUiScreenManager.h"
 #include "ViewModels/ScreenViewModel.h"
+#include UE_INLINE_GENERATED_CPP_BY_NAME(ScreenViewModelResolver)
 
 UObject* UScreenViewModelResolver::CreateInstance(const UClass* ExpectedType, const UUserWidget* UserWidget, const UMVVMView* View) const
 {

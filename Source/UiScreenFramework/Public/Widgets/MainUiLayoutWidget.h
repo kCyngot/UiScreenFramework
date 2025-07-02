@@ -8,10 +8,10 @@
 #include "Structs/LayerInfo.h"
 #include "Structs/UiScreenInfo.h"
 #include "MainUiLayoutWidget.generated.h"
+DECLARE_DELEGATE_OneParam(FOnDisplayedWidgetChanged, UCommonActivatableWidget* /* Current Screen Widget */);
 
 class UOverlay;
-// class UCommonLazyWidget;
-// class UOverlay;
+
 /**
  * @class UMainUiLayoutWidget
  * @brief Manages the main layout of the UI, organizing different screens into distinct, ordered layers.
@@ -22,16 +22,23 @@ class UISCREENFRAMEWORK_API UMainUiLayoutWidget : public UCommonUserWidget
 	GENERATED_BODY()
 
 public:
+	ULayerWidget* GetLayerForScreenInfo(const FUiScreenInfo& UiScreenInfo);
+	bool TrySwitchToExistingScreenInLayer(const FUiScreenInfo& UiScreenInfo);
 	/**
 	 * @brief Sets the content for a specific layer and clears all layers above it.
 	 * @param UiScreenInfo The information about the screen to display, including the target layer and widget class.
+	 * @param bCleanUpExistingScreens The information whether first all screens should be cleaned up
 	 */
-	void SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo);
+	void SetWidgetForLayer(const FUiScreenInfo& UiScreenInfo, const bool bCleanUpExistingScreens);
 	UOverlay* GetTooltipLayer() const { return TooltipLayer; }
+	void RemoveScreensFromHigherLayer(const FUiScreenInfo& UiScreenInfo);
+	UCommonActivatableWidget* GetCurrentScreenWidget();
 
+	FOnDisplayedWidgetChanged OnDisplayedWidgetChangedDelegate;
 protected:
 	virtual void NativeDestruct() override;
 
+	void OnDisplayedWidgetChanged(UCommonActivatableWidget* CommonActivatableWidget);
 	/**
 	 * @brief Adds and registers a new layer. Layers should be registered in their Z-order, from bottom to top.
 	 * @param LayerTag The gameplay tag identifying the layer (e.g., "UI.Layer.Game").
@@ -48,12 +55,6 @@ protected:
 	UFUNCTION(BlueprintCallable, Category = "UI Layout")
 	void RegisterTooltipLayer(UOverlay* LayerWidget);
 
-	/** Callback for when a lazy widget's loading state changes. */
-	void OnLoadingStateChanged(bool bIsLoading);
-
-	/** Callback for when a lazy widget's content has been loaded and set. */
-	void OnContentChanged(UUserWidget* UserWidget, FGameplayTag Layer);
-
 private:
 	/**
 	 * @brief The registered layers for the primary layout.
@@ -68,4 +69,6 @@ private:
 	 */
 	UPROPERTY(Transient)
 	TObjectPtr<UOverlay> TooltipLayer;
+
+	TWeakObjectPtr<UCommonActivatableWidget> CurrentScreenWidget;
 };

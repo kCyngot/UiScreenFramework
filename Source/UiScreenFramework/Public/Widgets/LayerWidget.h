@@ -1,115 +1,193 @@
-﻿// LayerWidget.h
+﻿#pragma once
 
-#pragma once
-//
-// #include "CoreMinimal.h"
-// #include "CommonLazyWidget.h"
-// #include "LayerWidget.generated.h"
-//
-// UCLASS()
-// class UISCREENFRAMEWORK_API ULayerWidget : public UCommonLazyWidget
-// {
-// 	GENERATED_BODY()
-// };
-
-#include "CoreMinimal.h"
-#include "Components/Widget.h"
-#include "Engine/StreamableManager.h"
-#include "Containers/Ticker.h"
+#include "Blueprint/UserWidgetPool.h"
+#include "Slate/SCommonAnimatedSwitcher.h"
 #include "LayerWidget.generated.h"
 
-class SOverlay;
-class UUserWidget;
+class SCommonAnimatedSwitcher;
+enum class ECommonSwitcherTransition : uint8;
+enum class ETransitionCurve : uint8;
 
-UCLASS()
+class UCommonActivatableWidget;
+class SOverlay;
+class SSpacer;
+
+DECLARE_LOG_CATEGORY_EXTERN(LogLayerWidget, Log, All);
+
+/** 
+ * Base of widgets built to manage N activatable widgets, displaying one at a time.
+ * Intentionally meant to be black boxes that do not expose child/slot modification like a normal panel widget.
+ */
+UCLASS(Abstract)
 class UISCREENFRAMEWORK_API ULayerWidget : public UWidget
 {
 	GENERATED_BODY()
 
 public:
-	ULayerWidget();
+	ULayerWidget(const FObjectInitializer& Initializer);
 
-	/**
-	 * @brief Asynchronously loads and displays a new widget, with a fade transition.
-	 * @param SoftWidget The widget class to load and display.
+	/** Adds an activatable widget to the container. See BP_AddWidget for more info. */
+	template <typename ActivatableWidgetT = UCommonActivatableWidget>
+	ActivatableWidgetT* AddWidget(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass)
+	{
+		// Don't actually add the widget if the cast will fail
+		if (ActivatableWidgetClass && ActivatableWidgetClass->IsChildOf<ActivatableWidgetT>())
+		{
+			return Cast<ActivatableWidgetT>(AddWidgetInternal(ActivatableWidgetClass, [](UCommonActivatableWidget&) {}));
+		}
+		return nullptr;
+	}
+
+	/** 
+	 * Generates (either creates or pulls from the inactive pool) instance of the given widget class and adds it to the container.
+	 * The provided lambda is called after the instance has been generated and before it is actually added to the container.
+	 * So if you've got setup to do on the instance before it potentially activates, the lambda is the place to do it.
 	 */
-	UFUNCTION(BlueprintCallable, Category = "Lazy Content")
-	void SetLazyContent(const TSoftClassPtr<UUserWidget> SoftWidget);
+	template <typename ActivatableWidgetT = UCommonActivatableWidget>
+	ActivatableWidgetT* AddWidget(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass, TFunctionRef<void(ActivatableWidgetT&)> InstanceInitFunc)
+	{
+		// Don't actually add the widget if the cast will fail
+		if (ActivatableWidgetClass && ActivatableWidgetClass->IsChildOf<ActivatableWidgetT>())
+		{
+			return Cast<ActivatableWidgetT>(AddWidgetInternal(ActivatableWidgetClass, [&InstanceInitFunc] (UCommonActivatableWidget& WidgetInstance) 
+				{
+					InstanceInitFunc(*CastChecked<ActivatableWidgetT>(&WidgetInstance));
+				}));
+		}
+		return nullptr;
+	}
 
-	/** @return The currently visible (or fading in) user widget. */
-	UFUNCTION(BlueprintCallable, Category = "Lazy Content")
-	UUserWidget* GetCurrentContent() const { return CurrentContent; }
+	/** 
+	 * Adds an activatable widget instance to the container. 
+	 * This instance is not pooled in any way by the stack and responsibility for ownership lies with the original creator of the widget.
+	 * 
+	 * NOTE: In general, it is *strongly* recommended that you opt for the class-based AddWidget above. This one is mostly just here for legacy support.
+	 */
+	void AddWidgetInstance(UCommonActivatableWidget& ActivatableWidget);
 
-	/** @return True if a screen is currently being loaded or a transition is in progress. */
-	UFUNCTION(BlueprintCallable, Category = "Lazy Content")
-	bool IsInTransition() const;
+	void RemoveWidget(UCommonActivatableWidget& WidgetToRemove);
+
+	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetStack)
+	UCommonActivatableWidget* GetActiveWidget() const;
+
+	const TArray<UCommonActivatableWidget*>& GetWidgetList() const { return WidgetList; }
+
+	int32 GetNumWidgets() const;
+	void SetSwitcherIndex(int32 TargetIndex, bool bInstantTransition = false);
+
+	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetContainer)
+	void ClearWidgets();
+
+	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetContainer)
+	void SetTransitionDuration(float Duration);
+	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetContainer)
+	float GetTransitionDuration() const;
+
+	DECLARE_EVENT_OneParam(UCommonActivatableWidgetContainerBase, FOnDisplayedWidgetChanged, UCommonActivatableWidget*);
+	FOnDisplayedWidgetChanged& OnDisplayedWidgetChanged() const { return OnDisplayedWidgetChangedEvent; }
+
+	DECLARE_EVENT_TwoParams(UCommonActivatableWidgetContainerBase, FTransitioningChanged, ULayerWidget* /*Widget*/, bool /*bIsTransitioning*/);
+	FTransitioningChanged OnTransitioningChanged;
 
 protected:
-	//~ Begin UWidget Interface
 	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void ReleaseSlateResources(bool bReleaseChildren) override;
-	//~ End UWidget Interface
+	virtual void OnWidgetRebuilt() override;
+
+	virtual void OnWidgetAddedToList(UCommonActivatableWidget& AddedWidget) { unimplemented(); }
+
+	/** The type of transition to play between widgets */
+	UPROPERTY(EditAnywhere, Category = Transition)
+	ECommonSwitcherTransition TransitionType;
+
+	/** The curve function type to apply to the transition animation */
+	UPROPERTY(EditAnywhere, Category = Transition)
+	ETransitionCurve TransitionCurveType;
+
+	/** The total duration of a single transition between widgets */
+	UPROPERTY(EditAnywhere, Category = Transition)
+	float TransitionDuration = 0.4f;
+
+	/**
+	 * Controls how we will choose another widget if a transitioning widget is removed during the transition.
+	 * Note for Queues and Stacks, ECommonSwitcherTransitionFallbackStrategy::Previous is a good option.
+	 */
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Transition)
+	ECommonSwitcherTransitionFallbackStrategy TransitionFallbackStrategy = ECommonSwitcherTransitionFallbackStrategy::None;
+
+	UPROPERTY(Transient)
+	TArray<TObjectPtr<UCommonActivatableWidget>> WidgetList;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UCommonActivatableWidget> DisplayedWidget;
+
+	UPROPERTY(Transient)
+	FUserWidgetPool GeneratedWidgetsPool;
+
+	TSharedPtr<SOverlay> MyOverlay;
+	TSharedPtr<SSpacer> MyInputGuard;
+	TSharedPtr<SCommonAnimatedSwitcher> MySwitcher;
 
 private:
-	/** Starts the process of transitioning to a newly loaded widget instance. */
-	void BeginTransition(UUserWidget* NewWidget);
+	/** 
+	 * Adds a widget of the given class to the container. 
+	 * Note that all widgets added to the container are pooled, so the caller should not try to cache and re-use the created widget.
+	 * 
+	 * It is possible for multiple instances of the same class to be added to the container at once, so any instance created in the past
+	 * is not guaranteed to be the one returned this time.
+	 *
+	 * So in practice, you should not trust that any prior state has been retained on the returned widget, and establish all appropriate properties every time.
+	 */
+	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetStack, meta = (DeterminesOutputType = ActivatableWidgetClass, DisplayName = "Push Widget"))
+	UCommonActivatableWidget* BP_AddWidget(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass);
 
-	/** Fades out the old content by registering a ticker. */
-	void StartFadeOut();
+	UFUNCTION(BlueprintCallable, Category = ActivatableWidgetContainer)
+	void RemoveWidget(UCommonActivatableWidget* WidgetToRemove);
 
-	/** Updates the fade-out animation. Runs on every tick. Returns false when complete. */
-	bool UpdateFadeOut(float DeltaTime);
+	UCommonActivatableWidget* AddWidgetInternal(TSubclassOf<UCommonActivatableWidget> ActivatableWidgetClass, TFunctionRef<void(UCommonActivatableWidget&)> InitFunc);
+	void RegisterInstanceInternal(UCommonActivatableWidget& NewWidget);
 
-	/** Called when the fade-out is complete. */
-	void OnFadeOutFinished();
+	void HandleSwitcherIsTransitioningChanged(bool bIsTransitioning);
+	void HandleActiveIndexChanged(int32 ActiveWidgetIndex);
+	void HandleActiveWidgetDeactivated(UCommonActivatableWidget* DeactivatedWidget);
 
-	/** Fades in the new content by registering a ticker. */
-	void StartFadeIn();
+	void ReleaseWidget(const TSharedRef<SWidget>& WidgetToRelease);
+	TArray<TSharedPtr<SWidget>> ReleasedWidgets;
 
-	/** Updates the fade-in animation. Runs on every tick. Returns false when complete. */
-	bool UpdateFadeIn(float DeltaTime);
+	bool bRemoveDisplayedWidgetPostTransition = false;
 
-	/** Called when the fade-in is complete. */
-	void OnFadeInFinished();
+	mutable FOnDisplayedWidgetChanged OnDisplayedWidgetChangedEvent;
+};
 
-	/** Cancels any ongoing asset streaming and removes active tickers. */
-	void CancelTransition();
-	
-	/** Async loading request wrapper. */
-	void RequestAsyncLoad(TSoftClassPtr<UObject> SoftObject, TFunction<void()>&& Callback);
+//////////////////////////////////////////////////////////////////////////
+// ULayerWidgetStack
+//////////////////////////////////////////////////////////////////////////
+
+/** 
+ * A display stack of ActivatableWidget elements. 
+ * 
+ * - Only the widget at the top of the stack is displayed and activated. All others are deactivated.
+ * - When that top-most displayed widget deactivates, it's automatically removed and the preceding entry is displayed/activated.
+ * - If RootContent is provided, it can never be removed regardless of activation state
+ */
+UCLASS()
+class UISCREENFRAMEWORK_API ULayerWidgetStack : public ULayerWidget
+{
+	GENERATED_BODY()
 
 public:
-	/** The duration of the fade-in and fade-out animations. */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Transition")
-	float TransitionDuration = 0.25f;
 
+	UCommonActivatableWidget* GetRootContent() const;
+
+protected:
+	virtual void SynchronizeProperties() override;
+	virtual void OnWidgetAddedToList(UCommonActivatableWidget& AddedWidget) override;
+	
 private:
-	/** The root Slate widget, which allows us to overlay widgets for fading. */
-	TSharedPtr<SOverlay> MyOverlay;
+	/** Optional widget to auto-generate as the permanent root element of the stack */
+	UPROPERTY(EditAnywhere, Category = Content)
+	TSubclassOf<UCommonActivatableWidget> RootContentWidgetClass;
 
-	/** The widget currently being displayed or fading in. */
 	UPROPERTY(Transient)
-	TObjectPtr<UUserWidget> CurrentContent;
-
-	/** The widget that is currently fading out. */
-	UPROPERTY(Transient)
-	TObjectPtr<UUserWidget> OldContent;
-	
-	/** Slate widget representation of the current content. */
-	TSharedPtr<SWidget> CurrentContentWidget;
-
-	/** Slate widget representation of the old content. */
-	TSharedPtr<SWidget> OldContentWidget;
-	
-	/** Handle for the ticker delegate, used to start/stop the fade animations. */
-	FTSTicker::FDelegateHandle TickerHandle;
-
-	/** Time elapsed during the current fade animation. */
-	float CurrentFadeTime = 0.0f;
-	
-	/** Handle for the asynchronous asset loading. */
-	TSharedPtr<FStreamableHandle> StreamingHandle;
-	
-	/** Path of the asset being loaded, used to prevent race conditions. */
-	FSoftObjectPath StreamingObjectPath;
+	TObjectPtr<UCommonActivatableWidget> RootContentWidget;
 };

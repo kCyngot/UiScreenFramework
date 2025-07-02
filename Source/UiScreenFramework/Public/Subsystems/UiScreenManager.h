@@ -4,7 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
+#include "Engine/StreamableManager.h"
 #include "Structs/MainLayoutWidgetInfo.h"
+#include "Structs/ScreenInitialData.h"
 #include "Structs/UiScreenState.h"
 #include "Subsystems/LocalPlayerSubsystem.h"
 #include "UiScreenManager.generated.h"
@@ -34,6 +36,7 @@ public:
 
 	//~ Begin ULocalPlayerSubsystem interface
 	virtual void Initialize(FSubsystemCollectionBase& Collection) override;
+	void CleanupAllScreenViewModels();
 	virtual void Deinitialize() override;
 	//~ End ULocalPlayerSubsystem interface
 
@@ -44,21 +47,25 @@ public:
 	 */
 	void InitializeUiScreenManager(APlayerController* PlayerController);
 
+	void OnScreenWidgetClassLoaded(FScreenInitialData ScreenInitialData);
 	/**
-	 * @brief Changes the active UI screen to the one specified by the tag.
-	 * @param ScreenTag The tag identifying the screen to navigate to.
-	 * @param InitializeViewModelCallback An optional callback to initialize the screen's view model.
+	 * @brief Changes the active UI screen to the one specified by the tag inside Initial data struct.
 	 */
-	void ChangeUiScreen(const FGameplayTag ScreenTag, TFunction<void(UScreenViewModel*)> InitializeViewModelCallback = nullptr);
+	void ChangeUiScreen(FScreenInitialData ScreenInitialData);
 
 	/**
 	 * @brief Navigates to the previously displayed UI screen.
 	 * Does nothing if there is no screen in the history.
 	 */
 	void GoToThePreviousUiScreen();
+	FUiScreenInfo* GetUiScreenInfo(const FGameplayTag ScreenTag);
 
 	const FUiScreenState& GetCurrentUiScreenData() const { return CurrentScreenState; }
 	const FMainLayoutWidgetInfo& GetMainLayoutWidgetInfo() const { return MainLayoutWidgetInfo; }
+	UScreenViewModel* GetScreenViewModel(const FGameplayTag ScreenTag);
+
+	UCommonActivatableWidget* GetScreenWidget() const;
+	void CallInitializeScreenWidgetCallback(UCommonActivatableWidget* ScreenWidget);
 
 	FOnUiScreenChanged OnUiScreenChanged;
 
@@ -69,7 +76,6 @@ public:
 protected:
 	void AddMainLayoutToViewport(UMainUiLayoutWidget* LayoutWidget);
 	void RemoveMainLayoutFromViewport(UMainUiLayoutWidget& LayoutWidget);
-
 	/**
 	 * @brief Creates the main layout widget and stores it.
 	 * @param PlayerController The player controller that will own the widget.
@@ -77,7 +83,7 @@ protected:
 	void CreateMainLayoutWidget(APlayerController* PlayerController);
 
 	void RemoveMainLayoutWidget();
-	void DeinitCurrentScreenViewModel();
+	void DeinitScreenViewModel(UScreenViewModel* ScreenViewModel);
 
 	/** Information about the currently active main layout widget instance. */
 	UPROPERTY(Transient)
@@ -95,13 +101,22 @@ private:
 	 * @brief Updates the current screen state and manages the screen history stack.
 	 * @param FoundViewInfo Information about the new screen being set.
 	 */
-	void SetCurrentScreenState(const FUiScreenInfo& FoundViewInfo);
+	void SetCurrentScreenState(const FScreenInitialData& ScreenInitialData, const FUiScreenInfo& FoundViewInfo);
 
 	/**
 	 * @brief Creates and initializes a view model for a given screen.
-	 * @param InitializeViewModelCallback Optional callback for custom initialization.
+	 * @param ScreenInitialData
 	 * @param FoundViewInfo Information about the screen for which to create the view model.
 	 */
-	void CreateAndInitializeScreenViewModel(TFunction<void(UScreenViewModel*)> InitializeViewModelCallback, const FUiScreenInfo& FoundViewInfo);
+	void CreateOrReuseScreenViewModel(const FScreenInitialData& ScreenInitialData, FUiScreenInfo& FoundViewInfo);
 	void BroadcastScreenChange(const FGameplayTag PreviousScreenTag, const FGameplayTag CurrentScreenTag) const;
+
+	TSharedPtr<FStreamableHandle> StreamingHandle;
+
+	TQueue<FScreenInitialData> ScreensToDisplayQueue;
+
+	TFunction<void(UCommonActivatableWidget*)> InitializeScreenWidgetCallback;
+
+	UPROPERTY(Transient)
+	TMap<FGameplayTag, TObjectPtr<UScreenViewModel>> ScreenViewModelsMap;
 };

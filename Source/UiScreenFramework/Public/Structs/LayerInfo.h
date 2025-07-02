@@ -3,7 +3,6 @@
 
 #include "LayerInfo.generated.h"
 
-
 class ULayerWidget;
 
 USTRUCT(BlueprintType)
