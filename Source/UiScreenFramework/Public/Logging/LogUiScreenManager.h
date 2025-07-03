@@ -1,3 +1,4 @@
+// Copyright People Can Fly. All Rights Reserved."
 
 #pragma once
 

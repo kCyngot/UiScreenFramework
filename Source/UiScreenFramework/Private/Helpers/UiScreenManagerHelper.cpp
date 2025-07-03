@@ -1,3 +1,6 @@
+// Copyright People Can Fly. All Rights Reserved."
+
+
 #include "Helpers/UiScreenManagerHelper.h"
 
 #include "Subsystems/UiScreenManager.h"

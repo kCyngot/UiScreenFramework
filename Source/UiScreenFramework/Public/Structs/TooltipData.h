@@ -1,5 +1,8 @@
+// Copyright People Can Fly. All Rights Reserved."
+
 #pragma once
 #include "GameplayTagContainer.h"
+#include "Blueprint/UserWidget.h"
 #include "Enums/TooltipPlacement.h"
 
 #include "TooltipData.generated.h"

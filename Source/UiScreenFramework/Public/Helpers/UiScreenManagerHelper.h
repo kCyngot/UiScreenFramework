@@ -1,3 +1,5 @@
+// Copyright People Can Fly. All Rights Reserved."
+
 #pragma once
 #include "GameplayTagContainer.h"
 #include "DeveloperSettings/UiScreenFrameworkSettings.h"

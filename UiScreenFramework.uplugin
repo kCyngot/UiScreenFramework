@@ -1,3 +1,4 @@
+
 {
 	"FileVersion": 3,
 	"Version": 1,
@@ -19,6 +20,16 @@
 			"Name": "UiScreenFramework",
 			"Type": "Runtime",
 			"LoadingPhase": "Default"
+		}
+	],
+	"Plugins": [
+		{
+			"Name": "CommonUI",
+			"Enabled": true
+		},
+		{
+			"Name": "ModelViewViewModel",
+			"Enabled": true
 		}
 	]
 }

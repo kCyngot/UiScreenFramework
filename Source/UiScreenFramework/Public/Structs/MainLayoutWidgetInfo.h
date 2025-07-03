@@ -1,3 +1,5 @@
+// Copyright People Can Fly. All Rights Reserved."
+
 #pragma once
 #include "Engine/LocalPlayer.h"
 #include "MainLayoutWidgetInfo.generated.h"

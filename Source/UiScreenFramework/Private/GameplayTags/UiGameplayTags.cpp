@@ -1,3 +1,5 @@
+// Copyright People Can Fly. All Rights Reserved."
+
 #include "GameplayTags/UiGameplayTags.h"
 
 UISCREENFRAMEWORK_API UE_DEFINE_GAMEPLAY_TAG(Tag_UiLayerGame, "UI.Layer.Game")
@@ -5,8 +7,4 @@ UISCREENFRAMEWORK_API UE_DEFINE_GAMEPLAY_TAG(Tag_UiLayerMenu, "UI.Layer.Menu")
 UISCREENFRAMEWORK_API UE_DEFINE_GAMEPLAY_TAG(Tag_UiLayerModal, "UI.Layer.Modal")
 
 
-UISCREENFRAMEWORK_API UE_DEFINE_GAMEPLAY_TAG(Tag_ScreenHud, "UI.Screen.Hud")
-UISCREENFRAMEWORK_API UE_DEFINE_GAMEPLAY_TAG(Tag_ScreenInventory, "UI.Screen.Inventory")
-UISCREENFRAMEWORK_API UE_DEFINE_GAMEPLAY_TAG(Tag_ScreenModal, "UI.Screen.Modal")
-UISCREENFRAMEWORK_API UE_DEFINE_GAMEPLAY_TAG(Tag_ScreenSettings, "UI.Screen.Settings")
 

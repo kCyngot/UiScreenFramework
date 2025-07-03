@@ -1,5 +1,8 @@
+// Copyright People Can Fly. All Rights Reserved."
+
 #pragma once
 
+#include "Engine/LocalPlayer.h"
 #include "Kismet/GameplayStatics.h"
 
 namespace GeneralHelper

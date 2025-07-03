@@ -1,4 +1,6 @@
-﻿#include "Widgets/LayerWidget.h"
+﻿// Copyright People Can Fly. All Rights Reserved."
+
+#include "Widgets/LayerWidget.h"
 
 #include "CommonActivatableWidget.h"
 #include "Slate/SCommonAnimatedSwitcher.h"

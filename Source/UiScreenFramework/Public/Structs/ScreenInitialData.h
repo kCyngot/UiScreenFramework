@@ -1,4 +1,6 @@
-﻿#pragma once
+﻿// Copyright People Can Fly. All Rights Reserved."
+
+#pragma once
 #include "GameplayTagContainer.h"
 
 #include "ScreenInitialData.generated.h"

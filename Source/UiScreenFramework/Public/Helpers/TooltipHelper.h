@@ -1,4 +1,7 @@
+// Copyright People Can Fly. All Rights Reserved."
+
 #pragma once
+#include "Math/Vector2D.h"
 
 
 struct FTooltipData;

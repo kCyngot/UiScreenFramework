@@ -1,7 +1,10 @@
-﻿#pragma once
+﻿// Copyright People Can Fly. All Rights Reserved."
+
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameplayTagContainer.h"
+#include "Containers/Queue.h"
 #include "Engine/StreamableManager.h"
 #include "Structs/MainLayoutWidgetInfo.h"
 #include "Structs/ScreenInitialData.h"

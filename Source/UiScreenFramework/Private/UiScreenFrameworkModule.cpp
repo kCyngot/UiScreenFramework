@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright People Can Fly. All Rights Reserved."
 
 #include "UiScreenFrameworkModule.h"
 
@@ -17,4 +17,4 @@ void FUiScreenFrameworkModule::ShutdownModule()
 
 #undef LOCTEXT_NAMESPACE
 	
-IMPLEMENT_MODULE(FUiScreenFrameworkModule, UiViewManager)
+IMPLEMENT_MODULE(FUiScreenFrameworkModule, UiScreenFramework)

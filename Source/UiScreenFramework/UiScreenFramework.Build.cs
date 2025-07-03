@@ -1,4 +1,4 @@
-// Copyright Epic Games, Inc. All Rights Reserved.
+// Copyright People Can Fly. All Rights Reserved.".
 
 using UnrealBuildTool;
 

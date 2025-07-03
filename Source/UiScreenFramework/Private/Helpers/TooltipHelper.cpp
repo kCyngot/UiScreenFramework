@@ -1,3 +1,5 @@
+// Copyright People Can Fly. All Rights Reserved."
+
 #include "Helpers/TooltipHelper.h"
 
 #include "Blueprint/SlateBlueprintLibrary.h"
