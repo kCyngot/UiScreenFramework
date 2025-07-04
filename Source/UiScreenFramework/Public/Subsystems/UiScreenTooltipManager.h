@@ -50,13 +50,11 @@ public:
 	 * Then, its visibility is enabled, and its content and position are updated.
 	 * @param TooltipRequestData The data specifying which tooltip to show and where.
 	 */
-	UFUNCTION(BlueprintCallable)
 	void DisplayTooltip(const FTooltipData& TooltipRequestData);
 
 	/**
 	 * @brief Hides the tooltip that is currently being displayed.
 	 */
-	UFUNCTION(BlueprintCallable)
 	void HideCurrentTooltip();
 
 private:

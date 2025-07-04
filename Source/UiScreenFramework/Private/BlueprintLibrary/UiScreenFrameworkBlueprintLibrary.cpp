@@ -63,3 +63,21 @@ UUiScreenTooltipManager* UUiScreenFrameworkBlueprintLibrary::GetTooltipSubsystem
 {
 	return GeneralHelper::GetLocalPlayerSubsystem<UUiScreenTooltipManager>(WorldContextObject);
 }
+
+void UUiScreenFrameworkBlueprintLibrary::DisplayTooltip(const FTooltipData& TooltipRequestData, const UObject* WorldContextObject)
+{
+	UUiScreenTooltipManager* UiScreenTooltipManager = GeneralHelper::GetLocalPlayerSubsystem<UUiScreenTooltipManager>(WorldContextObject);
+	if (ensure(UiScreenTooltipManager))
+	{
+		UiScreenTooltipManager->DisplayTooltip(TooltipRequestData);
+	}
+}
+
+void UUiScreenFrameworkBlueprintLibrary::HideCurrentTooltip(const UObject* WorldContextObject)
+{
+	UUiScreenTooltipManager* UiScreenTooltipManager = GeneralHelper::GetLocalPlayerSubsystem<UUiScreenTooltipManager>(WorldContextObject);
+	if (ensure(UiScreenTooltipManager))
+	{
+		UiScreenTooltipManager->HideCurrentTooltip();
+	}
+}

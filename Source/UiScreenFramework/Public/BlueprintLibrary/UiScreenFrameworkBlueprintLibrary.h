@@ -7,6 +7,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "UiScreenFrameworkBlueprintLibrary.generated.h"
 
+struct FTooltipData;
 class UCommonActivatableWidget;
 class UUiScreenTooltipManager;
 class UUiScreenManager;
@@ -42,4 +43,10 @@ public:
 
 	UFUNCTION(BlueprintPure, Category = "Ui Screen Framework", meta = (WorldContext = "WorldContextObject"))
 	static UUiScreenTooltipManager* GetTooltipSubsystem(const UObject* WorldContextObject);
+
+	UFUNCTION(BlueprintCallable, Category = "Ui Screen Framework", meta = (WorldContext = "WorldContextObject"))
+	static void DisplayTooltip(const FTooltipData& TooltipRequestData, const UObject* WorldContextObject);
+	
+	UFUNCTION(BlueprintCallable, Category = "Ui Screen Framework", meta = (WorldContext = "WorldContextObject"))
+	static void HideCurrentTooltip(const UObject* WorldContextObject);
 };
