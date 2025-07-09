@@ -277,7 +277,7 @@ void UUiScreenManager::ChangeUiScreen(FScreenInitialData ScreenInitialData)
 		return;
 	}
 
-	if (ScreenTag == CurrentScreenState.ScreenId)
+	if (ScreenTag == CurrentScreenState.ScreenId && !ScreenInitialData.bCleanUpExistingScreens)
 	{
 		UE_LOG(LogUiScreenFramework, Error, TEXT("%hs New screen id %s is the same as current one, change aborted"), __FUNCTION__, *ScreenTag.ToString());
 		return;

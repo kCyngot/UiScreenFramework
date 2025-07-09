@@ -7,6 +7,8 @@
 
 namespace GeneralHelper
 {
+	APlayerController* GetPlayerController(const UObject* WorldContextObject);
+
 	template <typename SubsystemClass>
 	SubsystemClass& GetLocalPlayerSubsystemChecked(const ULocalPlayer* LocalPlayer)
 	{
@@ -40,13 +42,13 @@ namespace GeneralHelper
 		}
 
 		const APlayerController* PlayerController = UGameplayStatics::GetPlayerController(WorldContextObject, 0);
-		if (!ensure(PlayerController))
+		if (!PlayerController)
 		{
 			return nullptr;
 		}
 
 		const ULocalPlayer* LocalPlayer = PlayerController->GetLocalPlayer();
-		if (!ensure(PlayerController))
+		if (!LocalPlayer)
 		{
 			return nullptr;
 		}

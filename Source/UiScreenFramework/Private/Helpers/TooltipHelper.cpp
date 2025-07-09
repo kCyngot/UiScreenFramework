@@ -8,7 +8,6 @@
 #include "Helpers/UiScreenManagerHelper.h"
 #include "Structs/TooltipData.h"
 #include "Subsystems/UiScreenManager.h"
-UE_DISABLE_OPTIMIZATION
 
 FVector2D TooltipHelper::CalculateTooltipPosition(const FTooltipData& TooltipData)
 {
@@ -78,5 +77,3 @@ UOverlay* TooltipHelper::GetTooltipLayer(const UObject* WorldContextObject)
 
 	return MainUiLayoutWidget->GetTooltipLayer();
 }
-
-UE_ENABLE_OPTIMIZATION

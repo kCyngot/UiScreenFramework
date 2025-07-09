@@ -12,7 +12,7 @@
 
 DEFINE_LOG_CATEGORY(LogLayerWidget);
 
-UCommonActivatableWidget* ActivatableWidgetFromSlate(const TSharedPtr<SWidget>& SlateWidget)
+UCommonActivatableWidget* GetActivatableWidgetFromSlate(const TSharedPtr<SWidget>& SlateWidget)
 {
 	if (SlateWidget && SlateWidget != SNullWidget::NullWidget && ensure(SlateWidget->GetType().IsEqual(TEXT("SObjectWidget"))))
 	{
@@ -34,7 +34,7 @@ ULayerWidget::ULayerWidget(const FObjectInitializer& Initializer)
 
 UCommonActivatableWidget* ULayerWidget::GetActiveWidget() const
 {
-	return MySwitcher ? ActivatableWidgetFromSlate(MySwitcher->GetActiveWidget()) : nullptr;
+	return MySwitcher ? GetActivatableWidgetFromSlate(MySwitcher->GetActiveWidget()) : nullptr;
 }
 
 int32 ULayerWidget::GetNumWidgets() const
@@ -197,7 +197,7 @@ void ULayerWidget::HandleActiveWidgetDeactivated(UCommonActivatableWidget* Deact
 
 void ULayerWidget::ReleaseWidget(const TSharedRef<SWidget>& WidgetToRelease)
 {
-	if (UCommonActivatableWidget* ActivatableWidget = ActivatableWidgetFromSlate(WidgetToRelease))
+	if (UCommonActivatableWidget* ActivatableWidget = GetActivatableWidgetFromSlate(WidgetToRelease))
 	{
 		UE_LOG(LogLayerWidget, Verbose, TEXT("%hs WidgetToRelease: %s"), __FUNCTION__, *ActivatableWidget->GetName());
 
@@ -257,7 +257,7 @@ void ULayerWidget::HandleActiveIndexChanged(int32 ActiveWidgetIndex)
 	bRemoveDisplayedWidgetPostTransition = false;
 
 	// Activate the widget that's now being displayed
-	DisplayedWidget = ActivatableWidgetFromSlate(MySwitcher->GetActiveWidget());
+	DisplayedWidget = GetActivatableWidgetFromSlate(MySwitcher->GetActiveWidget());
 	if (DisplayedWidget)
 	{
 		SetVisibility(ESlateVisibility::SelfHitTestInvisible);
