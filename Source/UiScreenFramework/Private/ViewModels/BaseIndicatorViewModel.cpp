@@ -121,10 +121,17 @@ bool UBaseIndicatorViewModel::IsPlayerWithinRange() const
 		{
 			return false;
 		}
-		
+
 		return true;
 	}
 	return false;
+}
+
+void UBaseIndicatorViewModel::Deinit()
+{
+	ResetActorAttachedTo();
+
+	Super::Deinit();
 }
 
 float UBaseIndicatorViewModel::CalculateOuterDistanceFactor(const float Distance, const float OuterRange, float InnerRange)
@@ -195,5 +202,5 @@ void UBaseIndicatorViewModel::HandleVisibilityCheck()
 
 void UBaseIndicatorViewModel::UpdateDistanceFactor()
 {
-	//TODO implement using view model
+	//TODO implement with using view model
 }

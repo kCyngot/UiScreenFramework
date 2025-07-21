@@ -33,7 +33,7 @@ void UIndicatorManagerSubsystem::Deinitialize()
 	{
 		GetWorld()->GetTimerManager().ClearTimer(DistanceCheckTimerHandle);
 	}
-	
+
 	OnIndicatorAdded.Clear();
 	OnIndicatorRemoved.Clear();
 	OnIndicatorCategoryVisibilityChanged.Clear();
@@ -68,7 +68,8 @@ void UIndicatorManagerSubsystem::AddIndicator(UBaseIndicatorViewModel* Indicator
 		return;
 	}
 
-	UE_LOG(LogUIIndicatorPanel, Verbose, TEXT("%s : IndicatorViewModel %s, AttachedToActor %s"), *FString(__FUNCTION__), *GetNameSafe(IndicatorViewModel), *GetNameSafe(IndicatorViewModel->GetActorAttachedTo()));
+	UE_LOG(LogUIIndicatorPanel, Verbose, TEXT("%s : IndicatorViewModel %s, AttachedToActor %s"), *FString(__FUNCTION__), *GetNameSafe(IndicatorViewModel),
+		*GetNameSafe(IndicatorViewModel->GetActorAttachedTo()));
 	Indicators.Add(IndicatorViewModel);
 	OnIndicatorAdded.Broadcast(IndicatorViewModel);
 }
@@ -84,7 +85,10 @@ void UIndicatorManagerSubsystem::RemoveIndicator(UBaseIndicatorViewModel* Indica
 			return;
 		}
 
-		UE_LOG(LogUIIndicatorPanel, Verbose, TEXT("%s : IndicatorViewModel %s, AttachedToActor %s"), *FString(__FUNCTION__), *GetNameSafe(IndicatorViewModel), *GetNameSafe(IndicatorViewModel->GetActorAttachedTo()));
+		UE_LOG(LogUIIndicatorPanel, Verbose, TEXT("%s : IndicatorViewModel %s, AttachedToActor %s"), *FString(__FUNCTION__), *GetNameSafe(IndicatorViewModel),
+			*GetNameSafe(IndicatorViewModel->GetActorAttachedTo()));
+
+		IndicatorViewModel->Deinit();
 
 		Indicators.Remove(IndicatorViewModel);
 		OnIndicatorRemoved.Broadcast(IndicatorViewModel);
@@ -113,7 +117,7 @@ FString UIndicatorManagerSubsystem::GetIndicatorDebugInfo(const UBaseIndicatorVi
 						"\nIndicatorWidgetClass: {3} \nProjectionMode: {4}, HAlignment: {5}, VAlignment: {6}"
 						"\nBoundingBoxAnchor: {7}, ScreenSpaceOffset: {8}, WorldPositionOffset: {9}"
 						"\nbClampToScreen: {10}, Priority: {11}"
-					),
+						),
 					{
 						IndicatorViewModel->IndicatorWidget.IsValid() ? IndicatorViewModel->IndicatorWidget->GetName() : TEXT("None"),
 						IndicatorViewModel->GetIndicatorVisibility() ? TEXT("True") : TEXT("False"),
@@ -128,8 +132,8 @@ FString UIndicatorManagerSubsystem::GetIndicatorDebugInfo(const UBaseIndicatorVi
 						IndicatorViewModel->GetClampToScreen() ? TEXT("True") : TEXT("False"),
 						FString::FromInt(IndicatorViewModel->GetPriority())
 					}
-				)
-			);
+					)
+				);
 		}
 		else
 		{
@@ -141,8 +145,8 @@ FString UIndicatorManagerSubsystem::GetIndicatorDebugInfo(const UBaseIndicatorVi
 						IndicatorViewModel->GetIndicatorVisibility() ? TEXT("True") : TEXT("False"),
 						IndicatorViewModel->GetActorAttachedTo() ? IndicatorViewModel->GetActorAttachedTo()->GetName() : TEXT("None")
 					}
-				)
-			);
+					)
+				);
 		}
 	}
 	else

@@ -29,17 +29,23 @@ struct FScreenInitialData
 
 	FScreenInitialData() = default;
 
+	FScreenInitialData(const FGameplayTag InScreenTag)
+		: ScreenTag(InScreenTag)
+	{
+	}
+
+	FScreenInitialData(const FGameplayTag InScreenTag, const bool bInCleanUpExistingScreens)
+		: ScreenTag(InScreenTag)
+		  , bCleanUpExistingScreens(bInCleanUpExistingScreens)
+	{
+	}
+
 	FScreenInitialData(const FGameplayTag InScreenId, const bool bInCleanUpExistingScreens, const TFunction<void(UScreenViewModel*)>& InInitializeViewModelCallback,
 		const TFunction<void(UCommonActivatableWidget*)>& InInitializeScreenWidgetCallback)
 		: ScreenTag(InScreenId)
 		  , bCleanUpExistingScreens(bInCleanUpExistingScreens)
 		  , InitializeViewModelCallback(InInitializeViewModelCallback)
 		  , InitializeScreenWidgetCallback(InInitializeScreenWidgetCallback)
-	{
-	}
-
-	FScreenInitialData(const FGameplayTag InScreenId)
-		: ScreenTag(InScreenId)
 	{
 	}
 };

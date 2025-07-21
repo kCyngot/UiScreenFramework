@@ -18,5 +18,5 @@ struct UISCREENFRAMEWORK_API FScreenEdgeMarkersTrackArea
 public:
 	// Offsets that will be subtracted from the indicator canvas dimensions to obtain the clamping area.
 	UPROPERTY(EditAnywhere, BlueprintReadOnly)
-	FMargin Offsets;
+	FMargin Offsets = FMargin(40.f);
 };

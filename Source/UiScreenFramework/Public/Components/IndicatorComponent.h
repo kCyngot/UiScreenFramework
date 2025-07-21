@@ -16,6 +16,8 @@ class UISCREENFRAMEWORK_API UIndicatorComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+	UIndicatorComponent();
+
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void Deactivate() override;

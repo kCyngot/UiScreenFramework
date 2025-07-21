@@ -8,6 +8,7 @@
 #include "Components/OverlaySlot.h"
 #include "Helpers/GeneralHelper.h"
 #include "Helpers/TooltipHelper.h"
+#include "Helpers/ViewModelHelper.h"
 #include "Logging/LogUiScreenManager.h"
 #include "Subsystems/UiScreenManager.h"
 #include "View/MVVMView.h"
@@ -192,22 +193,6 @@ void UUiScreenTooltipManager::SetTooltipPosition(const TObjectPtr<UUserWidget>& 
 
 void UUiScreenTooltipManager::SetViewModelForTooltipWidget(const UUserWidget* TooltipWidget, UBaseViewModel* TooltipViewModel)
 {
-	if (!IsValid(TooltipViewModel))
-	{
-		return;
-	}
-
-	if (!ensure(TooltipWidget))
-	{
-		return;
-	}
-
-	UMVVMView* View = TooltipWidget->GetExtension<UMVVMView>();
-	if (!IsValid(View))
-	{
-		UE_LOG(LogUiScreenFramework, Warning, TEXT("%hs Widget %s does not have a view model %s"), __FUNCTION__, *GetNameSafe(TooltipWidget), *GetNameSafe(TooltipViewModel));
-		return;
-	}
-
-	View->SetViewModelByClass(TooltipViewModel);
+	ViewModelHelper::SetViewModel(TooltipWidget, TooltipViewModel);
 }
+

@@ -21,6 +21,10 @@ class UISCREENFRAMEWORK_API UBaseIndicatorViewModel : public UBaseViewModel
 	GENERATED_BODY()
 
 public:
+	virtual void Init()
+	{
+	};
+	virtual void Deinit() override;
 	void SetIsIndicatorClamped(const bool bInIsIndicatorClamped) { UE_MVVM_SET_PROPERTY_VALUE(bIsIndicatorClamped, bInIsIndicatorClamped); }
 	void SetClampAngle(const float InClampAngle) { UE_MVVM_SET_PROPERTY_VALUE(ClampAngle, InClampAngle); }
 
